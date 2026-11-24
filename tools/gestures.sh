@@ -13,7 +13,7 @@ BACKUP_DIR="$HOME/Library/Application Support/Tutamak"
 BACKUP="$BACKUP_DIR/gestures-backup.tsv"
 ACTIVATE=/System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings
 
-# "domain key"; currentHost = defaults -currentHost ... NSGlobalDomain
+# Each entry is "domain key"; the domain currentHost stands for `defaults -currentHost ... NSGlobalDomain`.
 ENTRIES=(
   "com.apple.AppleMultitouchTrackpad TrackpadFourFingerHorizSwipeGesture"
   "com.apple.AppleMultitouchTrackpad TrackpadFourFingerVertSwipeGesture"
@@ -81,12 +81,12 @@ case "${1:-status}" in
     done
     apply
     echo "macOS four-finger gestures are off; three-finger gestures are unchanged."
-    echo "If a four-finger swipe still opens Mission Control or switches Spaces, log out and back in."
+    echo "If a four-finger swipe still opens Mission Control or switches desktops, log out and back in."
     ;;
 
   restore)
     if [ ! -f "$BACKUP" ]; then
-      echo "No backup: $BACKUP" >&2
+      echo "No backup found: $BACKUP" >&2
       exit 1
     fi
     while IFS=$'\t' read -r domain key value; do

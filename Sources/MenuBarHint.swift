@@ -65,7 +65,7 @@ private struct HintBubble: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("Tutamak lives here")
                     .font(.system(size: 13, weight: .semibold))
-                Text("Its menu has every setting")
+                Text("Its menu opens Settings")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }

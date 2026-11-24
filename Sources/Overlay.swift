@@ -152,9 +152,9 @@ final class SnapOverlay {
     }
 }
 
-/// The drop grid drawn faintly over a display while a window is dragged, in the same style as the
-/// snap preview (which glides over it to the zone under the cursor). It sits just below the dragged
-/// window, so the window stays clear while every other window is covered. Main thread only.
+/// The snap grid, drawn faintly over a display while a window is dragged, in the same style as the
+/// snap preview (which glides over it to the zone under the pointer). It sits just behind the dragged
+/// window, so that window stays clear while every other window is covered. Main thread only.
 final class GridBackdrop {
     /// The same inset as the snap preview, so a preview of one cell sits exactly on it.
     private let inset: CGFloat = 6
@@ -162,7 +162,7 @@ final class GridBackdrop {
     private var below: CGWindowID?
     private var generation = 0
     private let cellsLayer = CAShapeLayer()
-    /// A faint light line inside the accent one, so the cells read on dark windows too.
+    /// A faint light line inside the accent one, so the cells show up on dark windows too.
     private let innerLayer = CAShapeLayer()
     private var built: NSWindow?
     private var displayWatcher: DisplayChangeWatcher?
@@ -261,7 +261,7 @@ final class GridBackdrop {
                 context.timingFunction = CAMediaTimingFunction(name: .easeOut)
                 self.window.animator().alphaValue = 1
             }
-            // The dragged window's app may still be coming to the front; settle below it again.
+            // The dragged window's app may still be coming to the front; settle behind it again.
             let current = generation
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
                 guard let self, self.generation == current else { return }

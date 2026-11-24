@@ -1,7 +1,8 @@
 // Draws Tutamak's app icon ("Paper Onyx") into an .iconset: a white ceramic dish holding four
 // polished onyx stones, the fingertips of a resting hand in its lopsided arc (the little finger
 // lowest). The light is in the stones: a soft sheen above, a thin rim, a faint bounce from the
-// dish below. A light face with dark marks, the same family as Evlat's icon.
+// dish below. A light face with dark marks, in the same family as the icon of Evlat, a
+// sibling app.
 //
 // At 16 px (1x) the stones would blur into each other, so there they are one-pixel ticks with
 // two-pixel gaps, on edges that fall on whole pixels.
@@ -23,14 +24,14 @@ guard args.count == 2 else {
 let out = URL(fileURLWithPath: args[1])
 try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
 
-// MARK: Colour and paths
+// MARK: Color and paths
 
 func rgb(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {
     CGColor(srgbRed: CGFloat((hex >> 16) & 0xff) / 255, green: CGFloat((hex >> 8) & 0xff) / 255,
             blue: CGFloat(hex & 0xff) / 255, alpha: alpha)
 }
 
-/// A gradient stop: colour, alpha, location.
+/// A gradient stop: color, alpha, location.
 typealias Stop = (UInt32, CGFloat, CGFloat)
 
 let sRGB = CGColorSpace(name: CGColorSpace.sRGB)!
@@ -41,10 +42,11 @@ func ellipse(_ cx: CGFloat, _ cy: CGFloat, _ w: CGFloat, _ h: CGFloat) -> CGPath
     CGPath(ellipseIn: CGRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h), transform: nil)
 }
 
-/// Apple's continuous-corner rounded rect (the well-known bezier approximation of the shape).
+/// Apple's continuous-corner rounded rect (the well-known Bézier approximation of the shape).
 func continuousRect(_ rect: CGRect, radius r: CGFloat) -> CGPath {
     let p = CGMutablePath()
-    // Each corner: its point, a unit vector back along the edge arrived on, one along the edge left on.
+    // Each corner: its point, a unit vector back along the edge the path arrives on, and one along
+    // the edge it leaves on.
     func corner(_ o: CGPoint, _ a: CGVector, _ b: CGVector, first: Bool) {
         func q(_ u: CGFloat, _ v: CGFloat) -> CGPoint {
             CGPoint(x: o.x + (a.dx * u + b.dx * v) * r, y: o.y + (a.dy * u + b.dy * v) * r)
@@ -87,7 +89,7 @@ func superellipse(_ cx: CGFloat, _ cy: CGFloat, _ w: CGFloat, _ h: CGFloat, n: C
 
 // MARK: The hand
 
-/// Fingertip centres and lean: index, middle, ring, little. The step is 160 so that at 32 px each
+/// Fingertip centers and lean: index, middle, ring, little. The step is 160 so that at 32 px each
 /// stone lands on the same sub-pixel phase.
 struct Finger { let x, y, lean: CGFloat }
 let hand = [Finger(x: 272, y: 512, lean: -3.5), Finger(x: 432, y: 446, lean: -1),
@@ -144,7 +146,7 @@ struct Pen {
         c.restoreGState()
     }
 
-    /// A stroke just inside the shape's edge, coloured top to bottom by a gradient.
+    /// A stroke just inside the shape's edge, colored top to bottom by a gradient.
     func rim(_ p: CGPath, width: CGFloat, _ stops: [Stop]) {
         let b = p.boundingBoxOfPath
         c.saveGState()
@@ -155,10 +157,10 @@ struct Pen {
         c.restoreGState()
     }
 
-    /// The shadow the whole icon casts on the desktop: a soft one below, a tight one all round.
+    /// The shadow the whole icon casts on the desktop: a soft one below, a tight one all around.
     func ground(_ p: CGPath) {
         soft(p, 0x000000, 0.30, blur: 26, dy: 12)
-        soft(p, 0x000000, 0.22, blur: 5, dy: 1)     // keeps the light body's top edge on a light desktop
+        soft(p, 0x000000, 0.22, blur: 5, dy: 1)     // keeps the light body's top edge visible on a light desktop
     }
 }
 

@@ -3,16 +3,16 @@ import Foundation
 import os
 
 /// The setup's practice: what the fingers on the trackpad are doing, for the setup to draw, and
-/// which gestures were done. While it is on, `GestureController` hands it every frame and every
-/// gesture and does nothing else: no window moves, no shortcut is posted.
+/// which gestures have been performed. While it is on, `GestureController` hands it every frame
+/// and every gesture and does nothing else: no window moves, no shortcut is posted.
 ///
 /// Written on the gesture queue and read by the drawing on each display frame. Nothing here is
 /// observed, so a touch frame redraws nothing by itself; only a finished gesture reaches the main
 /// queue (`onGesture`).
 final class PracticeFeed {
     struct State {
-        /// The fingers on the trackpad now by the trackpad's id for each, in trackpad units with
-        /// y down. The ids let the drawing follow one finger from frame to frame.
+        /// The fingers on the trackpad now, keyed by the id the trackpad gives each, in trackpad
+        /// units with y down. The ids let the drawing follow one finger from frame to frame.
         var fingers: [Int32: CGPoint] = [:]
         /// Where four fingers landed, for their trail while they slide.
         var landed: [Int32: CGPoint]?
@@ -33,10 +33,10 @@ final class PracticeFeed {
     }
 
     private let lock = OSAllocatedUnfairLock(initialState: State())
-    /// Called on the main queue when a gesture is done.
+    /// Called on the main queue when a gesture has been performed.
     var onGesture: (GestureDemo) -> Void = { _ in }
 
-    // The gesture queue's own.
+    // Used only on the gesture queue.
     private var dragged: CGFloat = 0
     private var scaleAtStart: CGFloat = 1
 
@@ -123,7 +123,7 @@ extension SceneFrame {
         let base = restingWindow
         let size = CGSize(width: base.width * s.scale, height: base.height * s.scale)
         let centre = CGPoint(x: base.midX + s.offset.dx, y: base.midY + s.offset.dy)
-        // Kept on the drawn display: grown, it is pushed back from the edges rather than cut off.
+        // Kept on the drawn display: when it grows, it is pushed back from the edges rather than cut off.
         let w = min(size.width, 1), h = min(size.height, 1)
         let x = min(max(centre.x - w / 2, 0), 1 - w), y = min(max(centre.y - h / 2, 0), 1 - h)
         f.window = s.maximized ? CGRect(x: 0, y: 0, width: 1, height: 1) : CGRect(x: x, y: y, width: w, height: h)
@@ -136,12 +136,12 @@ extension SceneFrame {
 }
 
 /// Eases the live drawing from one display frame to the next. Trackpad frames do not arrive in
-/// step with the display, so drawn as they come the fingers step and judder. Here each finger,
-/// followed by its id, glides toward where the trackpad last put it (a 30 ms exponential follow).
-/// It lands from a slightly larger dot, settling in; it lifts by fading and shrinking together,
-/// smoothly, over a quarter of a second, with its trail fading with it. Nothing grows or flashes
-/// as it goes. The window glides the same way, so a pinch grows it smoothly and a tap fills the
-/// screen rather than jumping.
+/// step with the display, so drawn as they come, the fingers would move in uneven steps. Here
+/// each finger, followed by its id, glides toward where the trackpad last put it (a 30 ms
+/// exponential follow). It lands from a slightly larger dot, settling in; it lifts by fading and
+/// shrinking at once, smoothly, over a quarter of a second, and its trail fades with it. Nothing
+/// grows or flashes as it goes. The window glides the same way, so a pinch grows it smoothly and
+/// a tap fills the screen rather than jumping.
 ///
 /// Used only from the drawing's timeline, on the main thread.
 final class LiveSmoother {

@@ -19,9 +19,9 @@ enum SetupStep: Int, CaseIterable, Comparable {
 
 /// What the footer's one primary button does on a step.
 enum SetupPrimary: Equatable {
-    /// Shows the system's prompt and opens Privacy & Security › Accessibility.
+    /// Opens Privacy & Security > Accessibility, with the guide card beside it.
     case allowAccess
-    /// Turns macOS's four-finger gestures off; only on this press.
+    /// Turns macOS's four-finger gestures off, and only when this button is pressed.
     case turnOffGestures
     case next
     case finish
@@ -42,7 +42,7 @@ struct ThreeFingerGestures: Equatable {
     var swipesBetweenDesktops = false
     /// Swipe up for Mission Control, down for App Exposé.
     var missionControl = false
-    /// Three-finger drag (Accessibility › Pointer Control).
+    /// Three-finger drag (Accessibility > Pointer Control).
     var drag = false
 }
 
@@ -55,6 +55,8 @@ struct SetupStatus: Equatable {
     var desktopShortcutsOn = true
     var missionControlShortcutsOn = true
     var threeFinger = ThreeFingerGestures()
+    /// A backup of macOS's four-finger gesture settings exists, so they can be restored.
+    var gesturesBackupExists = false
 
     func primary(on step: SetupStep) -> SetupPrimary {
         switch step {

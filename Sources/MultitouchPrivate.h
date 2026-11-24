@@ -48,6 +48,6 @@ void MTDeviceStop(MTDeviceRef, int);
 bool MTDeviceIsBuiltIn(MTDeviceRef);
 
 // Not multitouch, but private too: the window server's ID of an Accessibility window element
-// (used by Rectangle, yabai and Hammerspoon), to order the drop grid just below the dragged window.
+// (used by Rectangle, yabai and Hammerspoon), to order the snap grid just behind the dragged window.
 #include <ApplicationServices/ApplicationServices.h>
 AXError _AXUIElementGetWindow(AXUIElementRef element, CGWindowID *identifier);

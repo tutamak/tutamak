@@ -5,7 +5,7 @@ import QuartzCore
 ///
 /// Trackpad frames (about 67 a second) do not line up with the display's 60 or 120 Hz, so updating on
 /// every frame moves the window by uneven steps. Instead, a short follower runs at the display rate
-/// toward the latest target, which evens the steps out; the cursor stays on the same spot of the
+/// toward the latest target, which evens the steps out; the pointer stays on the same spot of the
 /// window. Snapping, maximizing and restoring are animated the same way. Main thread only.
 final class WindowAnimator: NSObject {
     /// Time constant of the follower (s): how quickly the shown frame catches up with the fingers.
@@ -43,7 +43,7 @@ final class WindowAnimator: NSObject {
     init(mover: WindowMover) {
         self.mover = mover
         eventSource = CGEventSource(stateID: .hidSystemState)
-        // Do not suppress real mouse events after we move the cursor.
+        // Do not suppress real mouse events after the pointer is moved.
         eventSource?.localEventsSuppressionInterval = 0
         super.init()
     }
@@ -74,8 +74,8 @@ final class WindowAnimator: NSObject {
 
     // MARK: Resizing
 
-    /// Starts resizing a window live. `anchor` stays put (0 = min edge, 1 = max edge, 0.5 = centre);
-    /// the cursor stays at `cursorSpot`, a fraction of the window's size from its origin.
+    /// Starts resizing a window live. `anchor` stays put (0 = min edge, 1 = max edge, 0.5 = center);
+    /// the pointer stays at `cursorSpot`, a fraction of the window's size from its origin.
     func resize(_ window: TargetWindow, anchor: CGPoint, cursorSpot: CGPoint) {
         start(fresh: true)
         mode = .resize(window, anchor: anchor, cursorSpot: cursorSpot, releasing: false)

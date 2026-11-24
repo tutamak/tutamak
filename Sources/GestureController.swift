@@ -5,7 +5,7 @@ import os
 let logger = Logger(subsystem: "local.tutamak", category: "gestures")
 
 /// Takes touch frames and turns the four-finger gestures into window actions:
-/// slide to move the window under the cursor, pinch to resize it, tap to maximize or restore it,
+/// slide to move the window under the pointer, pinch to resize it, tap to maximize or restore it,
 /// flick sideways to switch desktops (and, if on, up or down for Mission Control or App Exposé).
 ///
 /// All state lives on `queue`; the trackpad threads only drop frames there. Window motion itself
@@ -13,7 +13,7 @@ let logger = Logger(subsystem: "local.tutamak", category: "gestures")
 final class GestureController {
     struct Settings {
         var enabled = true
-        /// How far the cursor travels (pt) when the fingers slide across the full trackpad width.
+        /// How far the pointer travels (pt) when the fingers slide across the full trackpad width.
         var pointsPerUnit: CGFloat = 2000
         /// Whether window edges stick to display edges.
         var edgeResistance = true
@@ -24,7 +24,7 @@ final class GestureController {
         var verticalFlicks = false
         var pinchToResize = true
         var tapToMaximize = true
-        /// Drop windows into a grid of the display while dragging.
+        /// The snap grid that windows can be dropped into while dragging, if any.
         var grid = GridChoice.off
     }
 
@@ -88,10 +88,10 @@ final class GestureController {
     private struct ResizeSession {
         let window: TargetWindow
         let visible: CGRect
-        /// Which edges move, from where the cursor was when the resize began.
+        /// Which edges move, from where the pointer was when the resize began.
         let grip: ResizeGrip
         let anchor: CGPoint
-        /// How spread the fingers were when they landed (mean distance from their centre).
+        /// How spread the fingers were when they landed (mean distance from their center).
         let handSpread: CGFloat
         var target: CGRect
         var spread = Spread.zero
@@ -101,7 +101,7 @@ final class GestureController {
 
     /// Where a released window goes.
     private enum Drop: Equatable {
-        /// Pushed against a display edge: a half or the full screen, at once.
+        /// Pushed against a display edge: a half or the whole screen, at once.
         case edge(SnapZone)
         /// A zone of the grid, at once or after a wait (see `DropHold`).
         case grid(GridLayout)
@@ -113,7 +113,7 @@ final class GestureController {
         let from: CGRect
         let target: CGRect
         let layout: GridLayout
-        /// The zone is the whole visible area: a tap afterwards restores, as after maximizing.
+        /// The zone is the whole visible area: a tap afterward restores, as after maximizing.
         let fills: Bool
         let releasedAt: Double
     }
@@ -165,7 +165,7 @@ final class GestureController {
 
     private func process(device: UnsafeMutableRawPointer, touches: [RawTouch], time: Double) {
         guard settings.enabled else { return }
-        // Once a gesture started on one trackpad, frames from the other one must not mix in.
+        // Once a gesture has started on one trackpad, frames from the other one must not mix in.
         if let active = activeDevice, active != device { return }
 
         let points = touches.compactMap { t -> TouchPoint? in
@@ -262,7 +262,7 @@ final class GestureController {
         )
         s.moves += 1
 
-        // 3. Hand the target to the animator, which moves the window and cursor at the display's pace.
+        // 3. Hand the target to the animator, which moves the window and pointer at the display's pace.
         let origin = CGPoint(x: s.cursor.x - s.grab.dx, y: s.cursor.y - s.grab.dy)
         let animator = self.animator
         DispatchQueue.main.async { animator.setTarget(origin) }
@@ -341,7 +341,7 @@ final class GestureController {
             return
         }
         if case .grid(let layout) = drop {
-            // The grid and the preview stay up until the drop happens or is cancelled.
+            // The grid and the preview stay up until the drop happens or is canceled.
             DispatchQueue.main.async { animator.release() }
             let released = CGRect(
                 origin: CGPoint(x: s.cursor.x - s.grab.dx, y: s.cursor.y - s.grab.dy), size: window.frame.size
@@ -362,7 +362,7 @@ final class GestureController {
         guard case .edge(let zone) = drop else { return }
         DispatchQueue.main.async { grid.hide() }
 
-        // Snapping to full screen counts as maximizing: a tap afterwards restores the frame from before the drag.
+        // Snapping to the whole screen counts as maximizing: a tap afterward restores the frame from before the drag.
         var completion: ((CGRect) -> Void)?
         if zone == .maximize {
             remember(before: window.frame, for: window.element)
@@ -376,7 +376,7 @@ final class GestureController {
     }
 
     /// Reads the window back after a release and logs it if it is not where Tutamak left it: that
-    /// is the app (or macOS) moving it afterwards, not Tutamak.
+    /// is the app (or macOS) moving it afterward, not Tutamak.
     private func watchAfterRelease(_ window: TargetWindow, left: CGPoint) {
         for delay in [0.15, 0.5, 1.0] {
             DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + delay) { [weak self] in
@@ -414,7 +414,7 @@ final class GestureController {
             dropTimer = item
             queue.asyncAfter(deadline: .now() + seconds, execute: item)
         case .cancel(let keepPreview):
-            log("drop cancelled: grabbed again")
+            log("drop canceled: grabbed again")
             cancelDrop(hidePreview: !keepPreview)
         }
     }
@@ -490,13 +490,13 @@ final class GestureController {
         )
         _ = s.smoother.filter(.zero, at: time)
         resize = s
-        // Everything needed to tell afterwards why a resize changed the wrong side, or nothing.
+        // Everything needed to tell afterward why a resize changed the wrong side, or nothing.
         let axes = Geometry.resizedAxes(grip)
         let changes = [axes.width ? "width" : nil, axes.height ? "height" : nil].compactMap { $0 }.joined(separator: " and ")
         let spans = Geometry.spans(window.frame, visible)
         let full = [spans.width ? "full width" : nil, spans.height ? "full height" : nil].compactMap { $0 }
         log(String(
-            format: "resize began: %@ %@, cursor at (%.2f, %.2f) of it: %@, changes %@%@, anchor (%g, %g), hand spread %.3f",
+            format: "resize began: %@ %@, pointer at (%.2f, %.2f) of it: %@, changes %@%@, anchor (%g, %g), hand spread %.3f",
             window.appName, describe(window.frame), spot.x, spot.y, grip.description, changes,
             full.isEmpty ? "" : " (already \(full.joined(separator: " and ")))", anchor.x, anchor.y, handSpread.radial
         ))
@@ -532,7 +532,7 @@ final class GestureController {
 
     // MARK: Tap
 
-    /// Maximizes the window under the cursor, or restores it if Tutamak maximized it.
+    /// Maximizes the window under the pointer, or restores it if Tutamak maximized it.
     private func toggleMaximize() {
         let cursor = CGEvent(source: nil)?.location ?? .zero
         guard let window = grabWindow(at: cursor, needsSize: true) else { return }
@@ -548,7 +548,7 @@ final class GestureController {
             label = "restored"
             restoreFrames[key] = nil
         } else if Geometry.isClose(window.frame, visible) {
-            // Full screen, but not by us: nothing to restore, so bring it to a comfortable size.
+            // It fills the screen, but not through Tutamak: nothing to restore, so bring it to a comfortable size.
             target = visible.insetBy(dx: (visible.width / 6).rounded(), dy: (visible.height / 6).rounded())
             label = "restored"
             restoreFrames[key] = nil
@@ -592,14 +592,14 @@ final class GestureController {
 
     // MARK: Helpers
 
-    /// The window under the cursor, brought to the front; nil (and logged) if there is none to act on.
+    /// The window under the pointer, brought to the front; nil (and logged) if there is none to act on.
     private func grabWindow(at cursor: CGPoint, needsSize: Bool) -> TargetWindow? {
         guard AXIsProcessTrusted() else {
             log("no Accessibility permission; cannot touch windows")
             return nil
         }
         guard let window = AX.window(at: cursor) else {
-            log("no movable window under the cursor")
+            log("no movable window under the pointer")
             return nil
         }
         if needsSize, !AX.isSizeSettable(window.element) {

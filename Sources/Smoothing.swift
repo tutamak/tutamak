@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 /// A One Euro filter (Casiez, Roussel, Vogel, CHI 2012) for the natural jitter of fingers and sensor.
-/// It smooths hard when slow, so jitter disappears, and lightly when fast, so there is no felt lag.
+/// It smooths heavily when slow, so jitter disappears, and lightly when fast, so no lag is felt.
 /// Both axes share one cutoff (driven by speed) so a diagonal move does not lag differently per axis.
 /// Pure and tested.
 struct PointerSmoother {
@@ -73,8 +73,8 @@ struct DeadBand {
     ///
     /// An exponential follow never quite closes its gap, so one that ends less than `width` from
     /// the last applied point leaves the window a point short of its target until release, when
-    /// it jumps. That is what the user saw at a display edge: held a point inside the edge, then
-    /// a jump onto it on letting go. A target at least three quarters of `width` away is applied;
+    /// it jumps. That was seen at a display edge: the window was held a point inside the edge, then
+    /// jumped onto it on release. A target at least three quarters of `width` away is applied;
     /// nearer ones are not, so fingers resting on a half point do not flip between two points.
     mutating func settle(_ target: CGPoint) -> CGPoint? {
         let rounded = CGPoint(x: target.x.rounded(), y: target.y.rounded())

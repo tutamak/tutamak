@@ -1,9 +1,9 @@
 import AppKit
 import SwiftUI
 
-// The setup speaks macOS: system type and colours, rows like System Settings' with a coloured
+// The setup speaks macOS: system type and colors, rows like System Settings' with a colored
 // tile each, Liquid Glass buttons on macOS 26, and SF Symbols' own transitions when a state
-// changes. Colour means something (a row's kind, a state); nothing is decoration.
+// changes. Color means something (a row's kind, a state); nothing is decoration.
 
 // MARK: Root
 
@@ -95,7 +95,8 @@ private struct GesturesStep: View {
         } content: {
             Card {
                 Row(symbol: "hand.raised.fingers.spread", tint: .orange, title: "Four-finger swipes and pinch",
-                    detail: on ? "On in macOS" : "Off; a backup can be restored from the menu") {
+                    detail: on ? "On in macOS"
+                        : model.status.gesturesBackupExists ? "Off; the earlier settings can be restored in Settings" : "Off in macOS") {
                     StateMark(state: on ? (model.busy ? .working : .todo) : .done)
                 }
                 Row(symbol: "hand.point.up.left", tint: .gray, title: "Three-finger gestures",
@@ -131,10 +132,11 @@ private struct GesturesStep: View {
     }
 }
 
-/// Which gestures Tutamak recognizes, shown and tried. Above, the rows take turns being shown and
-/// the one under the pointer plays from its start, as in System Settings' Trackpad pane; as soon as
-/// fingers touch the trackpad it shows them instead, live, with the window answering. Each gesture
-/// done gets its tick. Nothing outside the setup moves meanwhile.
+/// The gestures Tutamak recognizes, shown and tried out. On the stage above the rows the gestures
+/// play in turn, and the one under the pointer plays from its start, as in System Settings'
+/// Trackpad pane; as soon as fingers touch the trackpad the stage shows them instead, live, with
+/// the window responding. Each gesture performed gets a checkmark. Meanwhile nothing outside the
+/// setup moves.
 private struct ChooseStep: View {
     let model: SetupModel
     @State private var hovered: GestureDemo?
@@ -243,9 +245,6 @@ private struct ChooseStep: View {
 
 private struct GridStep: View {
     let model: SetupModel
-    static let choices: [(title: String, raw: String)] = [
-        ("Off", "off"), ("Auto", "auto"), ("2 × 2", "2x2"), ("3 × 2", "3x2"), ("3 × 1", "3x1"),
-    ]
 
     var body: some View {
         StepLayout(
@@ -259,7 +258,7 @@ private struct GridStep: View {
                     detail: "Auto picks 3 × 2 on wide displays") {
                     Picker("", selection: Binding(get: { model.string("snapGrid") },
                                                   set: { model.setString("snapGrid", $0) })) {
-                        ForEach(Self.choices, id: \.raw) { Text($0.title).tag($0.raw) }
+                        ForEach(GridChoice.titled, id: \.raw) { Text($0.title).tag($0.raw) }
                     }
                     .labelsHidden()
                     .fixedSize()
@@ -281,7 +280,7 @@ private struct DoneStep: View {
     var body: some View {
         StepLayout(
             title: "You're set",
-            text: "Tutamak lives in the menu bar. Its menu has every setting, and this setup is there too, under Setup Assistant."
+            text: "Tutamak lives in the menu bar. Its menu opens Settings, and this assistant is there too, under Setup Assistant."
         ) {
             AppIcon()
         } content: {
@@ -297,7 +296,7 @@ private struct DoneStep: View {
 
 // MARK: Layout
 
-/// A step: its picture, title and a sentence, centred; then its rows.
+/// A step: its picture, title and a sentence, centered; then its rows.
 private struct StepLayout<Picture: View, Content: View>: View {
     let title: String
     let text: String
@@ -356,7 +355,7 @@ private struct SymbolBadge: View {
     }
 }
 
-/// Rows in one rounded group, a hairline between each, as in System Settings.
+/// Rows in one rounded group, with a hairline between them, as in System Settings.
 private struct Card<Content: View>: View {
     @ViewBuilder let content: Content
 
@@ -379,7 +378,7 @@ private struct Card<Content: View>: View {
     }
 }
 
-/// A row: a coloured tile with a white symbol, a title and a line under it, and its control.
+/// A row: a colored tile with a white symbol, a title and a line under it, and its control.
 private struct Row<Trailing: View>: View {
     let symbol: String
     let tint: Color
@@ -387,7 +386,7 @@ private struct Row<Trailing: View>: View {
     let detail: String
     /// The row whose gesture is playing above.
     var highlighted = false
-    /// Tried in the practice: a tick beside the title.
+    /// Tried in the practice: a checkmark beside the title.
     var done = false
     @ViewBuilder let trailing: Trailing
 

@@ -61,7 +61,7 @@ final class Multitouch {
     @discardableResult
     func start() -> Int {
         stop()
-        // Like Karabiner, we do not take ownership: a small leak on rescan is better
+        // Like Karabiner-Elements, we do not take ownership: a small leak on rescan is better
         // than crashing on a device that was released too early.
         guard let list = MTDeviceCreateList()?.takeUnretainedValue() else { return 0 }
         deviceList = list

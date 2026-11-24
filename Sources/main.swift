@@ -4,8 +4,8 @@ import ServiceManagement
 struct LaunchOptions {
     var verbose = false
     var check = false
-    /// Only the setup, with Accessibility reading as not allowed and settings kept in memory:
-    /// the whole flow can be tried on a Mac that is already set up, changing nothing.
+    /// Runs only the setup, with Accessibility reported as not allowed and settings kept in memory,
+    /// so the whole flow can be tried on a Mac that is already set up without changing anything.
     var setupDemo = false
 
     init(_ arguments: [String]) {
@@ -25,6 +25,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var blockerRetry: Timer?
     private var pendingRescan: DispatchWorkItem?
     private var setup: SetupWindowController?
+    private var settingsWindow: SettingsWindowController?
+    private var iconRefresh: Timer?
+    private var iconAlert: Bool?
     private let menuBarHint = MenuBarHint()
 
     init(options: LaunchOptions) {
@@ -110,16 +113,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var animateSnapping: Bool { defaults.bool(forKey: "animateSnapping") }
     private var snapGrid: GridChoice { GridChoice(defaults.string(forKey: "snapGrid") ?? "off") }
 
-    /// The choices in the Snap Grid menu.
-    private static let gridChoices: [(title: String, choice: GridChoice)] = [
-        ("Off", .off),
-        ("Auto (by Display Width)", .auto),
-        ("Halves & Quarters · 2 × 2", .fixed(GridLayout(columns: 2, rows: 2))),
-        ("Thirds & Sixths · 3 × 2", .fixed(GridLayout(columns: 3, rows: 2))),
-        ("Thirds · 3 × 1", .fixed(GridLayout(columns: 3, rows: 1))),
-    ]
-
     private func applySettings() {
+        refreshStatusIcon()
         controller.update(.init(
             enabled: enabled,
             pointsPerUnit: speed.pointsPerUnit,
@@ -183,7 +178,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             trackpads: deviceCount,
             desktopShortcutsOn: SystemShortcut.desktopSwitching.allSatisfy(\.isEnabled),
             missionControlShortcutsOn: SystemShortcut.missionControlAndAppWindows.allSatisfy(\.isEnabled),
-            threeFinger: SystemGestures.threeFinger
+            threeFinger: SystemGestures.threeFinger,
+            gesturesBackupExists: SystemGestures.hasBackup
         )
     }
 
@@ -212,8 +208,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menuBarHint.show(below: frame)
     }
 
-    /// The Mac's state as read, except Accessibility; turning gestures off and every setting
-    /// stay in memory.
+    /// The Mac's real state, except that Accessibility reads as not granted. Turning gestures off
+    /// changes nothing, and every setting stays in memory.
     private func demoSetupActions() -> SetupActions {
         var store: [String: Any] = defaults.dictionaryRepresentation()
         var actions = SetupActions(readStatus: { [weak self] in
@@ -237,18 +233,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        let image = NSImage(systemSymbolName: "hand.raised.fingers.spread", accessibilityDescription: "Tutamak")
-            ?? NSImage(systemSymbolName: "hand.draw", accessibilityDescription: "Tutamak")
-        image?.isTemplate = true
-        item.button?.image = image
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
         statusItem = item
+        refreshStatusIcon()
+        // Granting the permission or turning macOS's gestures off elsewhere changes the icon's dot.
+        iconRefresh = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
+            self?.refreshStatusIcon()
+        }
+    }
+
+    /// The icon shows a dot while something needs attention, and is dimmed while paused.
+    private func refreshStatusIcon() {
+        guard let button = statusItem?.button else { return }
+        let alert = !statusProblems().isEmpty
+        if alert != iconAlert {
+            button.image = MenuBarIcon.image(alert: alert)
+            iconAlert = alert
+        }
+        button.appearsDisabled = !enabled
     }
 
     /// The menu stays short: one status line when all is well (problems are listed only when there
-    /// are any, each leading to its fix), the gestures in their own submenu, then the settings.
+    /// are any, each leading to its fix), Enabled, and the items that open the settings and the setup.
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
@@ -263,49 +271,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
         add(menu, "Enabled", #selector(toggleEnabled)).state = enabled ? .on : .off
-
-        let gestures = NSMenu()
-        info(gestures, "With four fingers:")
-        let slide = NSMenuItem(title: "Slide to Move", action: nil, keyEquivalent: "")
-        slide.state = .on
-        slide.isEnabled = false
-        gestures.addItem(slide)
-        add(gestures, "Pinch to Resize", #selector(togglePinchToResize)).state = pinchToResize ? .on : .off
-        add(gestures, "Tap to Maximize", #selector(toggleTapToMaximize)).state = tapToMaximize ? .on : .off
-        add(gestures, "Flick to Switch Desktops", #selector(toggleSwipeToSwitch)).state = swipeToSwitch ? .on : .off
-        add(gestures, "Flick Up/Down for Mission Control", #selector(toggleVerticalFlicks)).state =
-            verticalFlicks ? .on : .off
-        submenu(menu, "Gestures", gestures)
-
-        let speeds = NSMenu()
-        for s in Speed.allCases {
-            let item = add(speeds, s.title, #selector(selectSpeed(_:)))
-            item.representedObject = s.rawValue
-            item.state = s == speed ? .on : .off
-        }
-        submenu(menu, "Speed", speeds)
-
-        let grids = NSMenu()
-        for (title, choice) in Self.gridChoices {
-            let item = add(grids, title, #selector(selectGrid(_:)))
-            item.representedObject = choice.raw
-            item.state = choice == snapGrid ? .on : .off
-        }
-        grids.addItem(.separator())
-        info(grids, "Drag a window over the grid and let go to")
-        info(grids, "drop it into a zone; hold ⌥ to place it freely.")
-        submenu(menu, "Snap Grid", grids)
-        add(menu, "Edge Resistance", #selector(toggleEdgeResistance)).state = edgeResistance ? .on : .off
-        add(menu, "Animate Snapping", #selector(toggleAnimateSnapping)).state = animateSnapping ? .on : .off
-
-        menu.addItem(.separator())
-        add(menu, "Launch at Login", #selector(toggleLaunchAtLogin)).state =
-            SMAppService.mainApp.status == .enabled ? .on : .off
-        add(menu, "Rescan Trackpads", #selector(rescanAction))
+        add(menu, "Settings…", #selector(openSettingsAction), key: ",")
         add(menu, "Setup Assistant…", #selector(openSetupAction))
-        if !SystemGestures.fourFingerEnabled, SystemGestures.hasBackup {
-            add(menu, "Restore macOS Four-Finger Gestures", #selector(restoreSystemGestures))
-        }
+        menu.addItem(.separator())
         add(menu, "Quit Tutamak", #selector(quit), key: "q")
     }
 
@@ -332,11 +300,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return problems
     }
 
-    private func submenu(_ menu: NSMenu, _ title: String, _ submenu: NSMenu) {
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        item.submenu = submenu
-        menu.addItem(item)
-    }
 
     private func info(_ menu: NSMenu, _ title: String) {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
@@ -362,40 +325,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         openSetup()
     }
 
+    @objc private func openSettingsAction() {
+        openSettings()
+    }
+
+    /// One settings window; opening it again brings it forward.
+    private func openSettings() {
+        if settingsWindow == nil {
+            let defaults = self.defaults
+            let controller = SettingsWindowController(model: SettingsModel(actions: SettingsActions(
+                status: { [weak self] in self?.setupStatus() ?? SetupStatus() },
+                bool: { defaults.bool(forKey: $0) },
+                setBool: { defaults.set($1, forKey: $0) },
+                string: { defaults.string(forKey: $0) ?? "" },
+                setString: { defaults.set($1, forKey: $0) },
+                opensAtLogin: { SMAppService.mainApp.status == .enabled },
+                setOpensAtLogin: { [weak self] in self?.setLaunchAtLogin($0) },
+                settingsChanged: { [weak self] in self?.applySettings() },
+                turnOffGestures: { SystemGestures.run("off") },
+                restoreGestures: { SystemGestures.run("restore") },
+                openSetup: { [weak self] in self?.openSetup() },
+                openKeyboardShortcuts: { [weak self] in self?.openKeyboardShortcuts() },
+                rescan: { [weak self] in self?.rescan() }
+            )))
+            controller.onClose = { [weak self] in self?.settingsWindow = nil }
+            settingsWindow = controller
+        }
+        settingsWindow?.show()
+    }
+
     @objc private func toggleEnabled() {
         defaults.set(!enabled, forKey: "enabled")
         applySettings()
     }
 
-    @objc private func toggleEdgeResistance() {
-        defaults.set(!edgeResistance, forKey: "edgeResistance")
-        applySettings()
-    }
 
-    @objc private func toggleAnimateSnapping() {
-        defaults.set(!animateSnapping, forKey: "animateSnapping")
-        applySettings()
-    }
 
-    @objc private func toggleSwipeToSwitch() {
-        defaults.set(!swipeToSwitch, forKey: "swipeToSwitch")
-        applySettings()
-    }
 
-    @objc private func toggleVerticalFlicks() {
-        defaults.set(!verticalFlicks, forKey: "verticalFlicks")
-        applySettings()
-    }
 
-    @objc private func togglePinchToResize() {
-        defaults.set(!pinchToResize, forKey: "pinchToResize")
-        applySettings()
-    }
 
-    @objc private func toggleTapToMaximize() {
-        defaults.set(!tapToMaximize, forKey: "tapToMaximize")
-        applySettings()
-    }
 
     @objc private func openKeyboardShortcuts() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
@@ -403,27 +371,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    @objc private func selectGrid(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String else { return }
-        defaults.set(raw, forKey: "snapGrid")
-        applySettings()
-    }
 
-    @objc private func selectSpeed(_ sender: NSMenuItem) {
-        guard let raw = sender.representedObject as? String else { return }
-        defaults.set(raw, forKey: "speed")
-        applySettings()
-    }
 
-    @objc private func toggleLaunchAtLogin() {
-        setLaunchAtLogin(SMAppService.mainApp.status != .enabled)
-    }
 
     private func setLaunchAtLogin(_ on: Bool) {
         do {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
         } catch {
-            alert("Could not change Launch at Login", error.localizedDescription)
+            alert("Could not change \"Open at login\"", error.localizedDescription)
         }
     }
 
@@ -435,11 +390,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let confirm = NSAlert()
         confirm.messageText = "Turn off macOS four-finger gestures?"
         confirm.informativeText = """
-        Four-finger Mission Control, switching between Spaces, and the Launchpad/desktop pinch are turned off; \
-        three-finger gestures stay as they are. The current values are backed up and can be restored from this menu.
+        This turns off the four-finger swipes for Mission Control and for switching desktops, and the \
+        Launchpad and Show Desktop pinch; three-finger gestures stay as they are. The current values are backed up \
+        and can be restored in Settings > macOS.
 
-        Tutamak's own flicks can stand in: sideways switches desktops, and with Gestures > Flick Up/Down \
-        for Mission Control on, up opens Mission Control and down App Exposé.
+        Tutamak's own flicks can stand in: a sideways flick switches desktops, and with Settings > Gestures > \
+        Flick up for Mission Control on, a flick up opens Mission Control and a flick down opens App Exposé.
         """
         confirm.addButton(withTitle: "Turn Off")
         confirm.addButton(withTitle: "Cancel")
@@ -449,10 +405,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert(result.ok ? "Turned off" : "Could not turn off", result.output)
     }
 
-    @objc private func restoreSystemGestures() {
-        let result = SystemGestures.run("restore")
-        alert(result.ok ? "Restored" : "Could not restore", result.output)
-    }
 
     @objc private func quit() {
         NSApp.terminate(nil)
@@ -480,9 +432,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
             let cursor = CGEvent(source: nil)?.location ?? .zero
             if let w = AX.window(at: cursor) {
-                print("window under cursor: \(w.appName) (\(Int(w.frame.minX)),\(Int(w.frame.minY)) \(Int(w.frame.width))×\(Int(w.frame.height)))")
+                print("window under pointer: \(w.appName) (\(Int(w.frame.minX)),\(Int(w.frame.minY)) \(Int(w.frame.width))×\(Int(w.frame.height)))")
             } else {
-                print("window under cursor: none (or not movable)")
+                print("window under pointer: none (or not movable)")
             }
             if let menu = self.statusItem?.menu {
                 self.menuNeedsUpdate(menu)
@@ -501,8 +453,8 @@ let arguments = CommandLine.arguments
 if arguments.contains("--touches") {
     TouchLog.run()
 }
-// `--flick left|right|up|down`: posts what a flick of the fingers that way posts, once, and exits,
-// to test the shortcut in isolation. `left` brings in the desktop on the right, as the flick does.
+// `--flick left|right|up|down`: posts, once, what a flick in that direction posts, then exits, to
+// test the shortcut in isolation. `left` brings in the desktop on the right, as the flick does.
 if let i = arguments.firstIndex(of: "--flick") {
     let directions: [String: SwipeDirection] = ["left": .left, "right": .right, "up": .up, "down": .down]
     guard let name = arguments.dropFirst(i + 1).first, let direction = directions[name] else {

@@ -36,12 +36,12 @@ check(Geometry.snapZone(at: CGPoint(x: 1512, y: 500), displays: both) == nil, "i
 check(Geometry.snapZone(at: CGPoint(x: 4071, y: 500), displays: both)?.zone == .right, "outer right edge of the external display")
 check(Geometry.snapZone(at: CGPoint(x: 2000, y: -200), displays: both)?.zone == .maximize, "top of the external display")
 check(Geometry.snapZone(at: CGPoint(x: 700, y: 0), displays: both)?.zone == .maximize, "top of the laptop is an outer edge")
-check(Geometry.snapZone(at: CGPoint(x: 4071, y: 500), displays: both)?.display == external, "zone is on the right display")
+check(Geometry.snapZone(at: CGPoint(x: 4071, y: 500), displays: both)?.display == external, "the zone is on the external display")
 
 check(
     Geometry.clamp(CGPoint(x: -50, y: 500), previous: CGPoint(x: 10, y: 500), displays: [laptop])
         == CGPoint(x: 0, y: 500),
-    "cursor past the left edge stops at the edge"
+    "the pointer stops at the left edge when pushed past it"
 )
 check(
     Geometry.clamp(CGPoint(x: 1600, y: 500), previous: CGPoint(x: 1500, y: 500), displays: both)
@@ -57,7 +57,7 @@ check(
 let visible = CGRect(x: 0, y: 33, width: 1512, height: 949)
 check(Geometry.snapFrame(.left, visible: visible) == CGRect(x: 0, y: 33, width: 756, height: 949), "left half")
 check(Geometry.snapFrame(.right, visible: visible) == CGRect(x: 756, y: 33, width: 756, height: 949), "right half")
-check(Geometry.snapFrame(.maximize, visible: visible) == visible, "full screen")
+check(Geometry.snapFrame(.maximize, visible: visible) == visible, "whole screen")
 let odd = CGRect(x: 10, y: 0, width: 1513, height: 900)
 check(
     Geometry.snapFrame(.left, visible: odd).width + Geometry.snapFrame(.right, visible: odd).width == 1513,
@@ -66,7 +66,7 @@ check(
 
 let cocoaVisible = CGRect(x: 0, y: 0, width: 1512, height: 949)
 check(Geometry.flip(cocoaVisible, primaryHeight: 982) == visible, "Cocoa → CG")
-check(Geometry.flip(Geometry.flip(visible, primaryHeight: 982), primaryHeight: 982) == visible, "flipping twice is identity")
+check(Geometry.flip(Geometry.flip(visible, primaryHeight: 982), primaryHeight: 982) == visible, "flipping twice is the identity")
 
 let a: [Int32: CGPoint] = [1: CGPoint(x: 0.1, y: 0.1), 2: CGPoint(x: 0.2, y: 0.2)]
 let b: [Int32: CGPoint] = [2: CGPoint(x: 0.3, y: 0.2), 3: CGPoint(x: 0.9, y: 0.9)]
@@ -160,7 +160,7 @@ do {
     check(step(&t, []).last == .ended, "ends at once when every finger lifts")
 }
 
-// The user's report (2026-11-25): held against a display edge by the resistance, the window moved a
+// Reported on 2026-11-25: held against a display edge by the resistance, the window moved a
 // few points away after the hand let go. A hand lifts one finger after another, and those left
 // behind roll back as they leave; none of that may move the window.
 do {
@@ -199,7 +199,7 @@ do {
 do {
     var t = dragTracker()
     _ = step(&t, touches([1, 2, 3, 4]))
-    // A pinch: the fingers move symmetrically toward the center, the average is ~0.
+    // A pinch: the fingers move symmetrically toward the center, so their average movement is ~0.
     let pinch = [
         TouchPoint(id: 1, position: CGPoint(x: 0.32, y: 0.5)),
         TouchPoint(id: 2, position: CGPoint(x: 0.36, y: 0.5)),
@@ -222,18 +222,18 @@ do {
     check(!t.isEngaged, "does not interfere with scrolling while blocked by five fingers")
 }
 
-// MARK: GestureTracker: swipes
+// MARK: GestureTracker: flicks
 
 do {
     var t = GestureTracker()
     _ = step(&t, touches([1, 2, 3, 4]))
     check(step(&t, touches([1, 2, 3, 4], dx: -0.03)).isEmpty, "a flick-like start waits")
     check(t.isEngaged && !t.isDragging, "waiting does not move the window but keeps scroll muted")
-    check(step(&t, touches([1, 2, 3, 4], dx: -0.06)).isEmpty, "still waiting below the swipe distance")
-    check(step(&t, touches([1, 2, 3, 4], dx: -0.09)) == [.swiped(.left)], "a fast sideways flick is a swipe")
+    check(step(&t, touches([1, 2, 3, 4], dx: -0.06)).isEmpty, "still waiting below the flick distance")
+    check(step(&t, touches([1, 2, 3, 4], dx: -0.09)) == [.swiped(.left)], "a fast sideways flick fires")
     check(t.lastDecision?.kind == .swipe, "the decision is recorded")
     check(step(&t, touches([1, 2, 3, 4], dx: -0.3)).isEmpty, "the rest of the motion is ignored")
-    check(t.isEngaged, "scroll stays muted after a swipe")
+    check(t.isEngaged, "scroll stays muted after a flick")
     check(step(&t, touches([1, 2], dx: -0.3)).isEmpty, "lifting fingers emits nothing")
     _ = step(&t, [])
     check(!t.isActive, "idle once the hand is off")
@@ -251,7 +251,7 @@ do {
     _ = step(&t, touches([1, 2, 3, 4]))
     for _ in 0..<15 { _ = step(&t, touches([1, 2, 3, 4])) }
     check(began(step(&t, touches([1, 2, 3, 4], dx: 0.05))), "resting first always drags, without waiting")
-    check(t.lastDecision?.reason == "too slow", "the rest counts against the flick window")
+    check(t.lastDecision?.reason == "too slow", "the time spent resting counts against the flick window")
 }
 
 do {
@@ -308,7 +308,7 @@ do {
     t.recognizesSwipes = false
     _ = step(&t, touches([1, 2, 3, 4]))
     _ = step(&t, touches([1, 2, 3, 4], dx: -0.05))
-    check(t.isDragging, "with swipes off, a flick drags")
+    check(t.isDragging, "with sideways flicks off, a flick drags")
 }
 
 // MARK: GestureTracker: vertical flicks (Mission Control / App Exposé)
@@ -327,7 +327,7 @@ do {
     _ = step(&t, touches([1, 2, 3, 4]))
     check(step(&t, touches([1, 2, 3, 4], dy: 0.04)).isEmpty, "a fast upward start waits")
     check(t.isEngaged && !t.isDragging, "waiting does not move the window")
-    check(step(&t, touches([1, 2, 3, 4], dy: 0.08)).isEmpty, "still waiting below the swipe distance (physical)")
+    check(step(&t, touches([1, 2, 3, 4], dy: 0.08)).isEmpty, "still waiting below the flick distance (physical)")
     check(step(&t, touches([1, 2, 3, 4], dy: 0.13)) == [.swiped(.up)], "a fast upward flick")
     check(t.lastDecision?.kind == .swipe, "the decision is recorded")
     check(step(&t, touches([1, 2, 3, 4], dy: 0.3)).isEmpty, "the rest of the motion is ignored")
@@ -364,7 +364,7 @@ do {
     _ = step(&t, touches([1, 2, 3, 4]))
     for _ in 0..<15 { _ = step(&t, touches([1, 2, 3, 4])) }
     check(began(step(&t, touches([1, 2, 3, 4], dy: 0.08))), "resting first drags up, without waiting")
-    check(t.lastDecision?.reason == "too slow", "the rest counts against the flick window")
+    check(t.lastDecision?.reason == "too slow", "the time spent resting counts against the flick window")
 }
 
 do {
@@ -423,8 +423,8 @@ do {
     check(t.lastDecision?.reason == "clutch", "decided as clutch")
 }
 
-// The user's vertical drags on 2026-11-23 reached dy ≈ −0.030 in ~64 ms; at that pace a drag
-// waits out the flick window and then drags, it does not open App Exposé.
+// Vertical drags logged on 2026-11-23 reached dy ≈ −0.030 in ~64 ms; at that pace a drag
+// waits out the flick window and then drags, rather than opening App Exposé.
 do {
     var t = verticalFlickTracker()
     _ = step(&t, touches([1, 2, 3, 4]))
@@ -443,7 +443,7 @@ check(SystemShortcut(flick: .down) == .appWindows && SystemShortcut.appWindows.r
 
 // MARK: GestureTracker: logged gestures, with every gesture on
 
-// Values from the user's real use on 2026-11-23, which they were happy with.
+// Values logged in real use on 2026-11-23, in a session where the gestures felt right.
 do {
     var t = GestureTracker()
     _ = step(&t, touches([1, 2, 3, 4]))
@@ -502,7 +502,7 @@ do {
     check(began(events) && !t.isResizing, "sliding with a little spread change drags, not resizes")
 }
 
-// The bug the user hit: opening the hand around a still thumb slides the fingers' centre too,
+// A bug found in use: opening the hand around a still thumb slides the fingers' center too,
 // and was taken for a drag; only symmetric pinches resized.
 do {
     var t = GestureTracker()
@@ -610,14 +610,14 @@ do {
 
     let screen = CGRect(x: 0, y: 33, width: 1512, height: 949)
     let floating = CGRect(x: 400, y: 200, width: 600, height: 400)
-    check(Geometry.resizeAnchor(floating, in: screen) == CGPoint(x: 0.5, y: 0.5), "a floating window resizes around its centre")
+    check(Geometry.resizeAnchor(floating, in: screen) == CGPoint(x: 0.5, y: 0.5), "a floating window resizes around its center")
     let leftHalf = CGRect(x: 0, y: 33, width: 756, height: 949)
     check(Geometry.resizeAnchor(leftHalf, in: screen) == CGPoint(x: 0, y: 0.5), "a left-snapped window keeps hugging the left edge")
-    check(Geometry.resizeAnchor(screen, in: screen) == CGPoint(x: 0.5, y: 0.5), "a full-screen window shrinks toward its centre")
+    check(Geometry.resizeAnchor(screen, in: screen) == CGPoint(x: 0.5, y: 0.5), "a window that fills the screen shrinks toward its center")
 
     let minimum = CGSize(width: 240, height: 160)
     let bigger = Geometry.resizedFrame(floating, scale: 1.5, anchor: CGPoint(x: 0.5, y: 0.5), within: screen, minimum: minimum)
-    check(bigger == CGRect(x: 250, y: 100, width: 900, height: 600), "grows around its centre")
+    check(bigger == CGRect(x: 250, y: 100, width: 900, height: 600), "grows around its center")
     let huge = Geometry.resizedFrame(floating, scale: 10, anchor: CGPoint(x: 0.5, y: 0.5), within: screen, minimum: minimum)
     check(huge == screen, "spreading far enough fills the screen")
     let tiny = Geometry.resizedFrame(floating, scale: 0.01, anchor: CGPoint(x: 0.5, y: 0.5), within: screen, minimum: minimum)
@@ -632,22 +632,22 @@ do {
     check(!Geometry.isClose(screen, leftHalf), "different frames are not close")
 }
 
-// MARK: Resize grip (the cursor's place in the window picks the edges)
+// MARK: Resize grip (the pointer's place in the window picks the edges)
 
 do {
-    let size = CGSize(width: 1512, height: 865) // the user's maximized window on the laptop
+    let size = CGSize(width: 1512, height: 865) // a maximized window, as logged on a laptop
     func grip(_ x: CGFloat, _ y: CGFloat) -> ResizeGrip { ResizeGrip(spot: CGPoint(x: x, y: y), size: size) }
     check(grip(0.5, 0.5).isCentre, "the middle of the window scales it")
-    check(grip(0.6, 0.4).isCentre, "the whole middle ninth is the centre")
+    check(grip(0.6, 0.4).isCentre, "the whole middle ninth is the center")
     check(grip(0.9, 0.5) == ResizeGrip(x: .high, y: .middle), "near the right edge grips the right edge")
     check(grip(0.5, 0.1).description == "top edge", "near the top grips the top edge")
     check(grip(0.05, 0.95).description == "bottom-left corner", "right in a corner grips both")
     // With thirds, two thirds of the bottom band were corners that changed the width too.
-    check(grip(0.25, 0.85).description == "bottom edge", "low in the window but off-centre is still the bottom edge")
-    check(grip(0.75, 0.2).description == "top edge", "high and off-centre is the top edge")
+    check(grip(0.25, 0.85).description == "bottom edge", "low in the window but off-center is still the bottom edge")
+    check(grip(0.75, 0.2).description == "top edge", "high and off-center is the top edge")
     check(grip(0.2, 0.6).description == "left edge", "beside the middle is the side edge")
     check(grip(0.1, 0.75).description == "left edge", "between two edges, the physically nearer one (151 pt from the left, 216 from the bottom)")
-    check(grip(0.15, 0.8).description == "bottom edge", "the other way round (227 pt from the left, 173 from the bottom)")
+    check(grip(0.15, 0.8).description == "bottom edge", "the other way around (227 pt from the left, 173 from the bottom)")
 
     let screen = CGRect(x: 0, y: 30, width: 2560, height: 1326)
     let floating = CGRect(x: 1000, y: 300, width: 800, height: 600)
@@ -659,7 +659,7 @@ do {
     check(Geometry.resizeAnchor(floating, in: screen, grip: top).y == 1, "gripping the top edge keeps the bottom edge")
     check(Geometry.resizeAnchor(floating, in: screen, grip: topLeft) == CGPoint(x: 1, y: 1), "a corner keeps the opposite corner")
 
-    // The motion that was hard: making a window taller. Any spread now does it with the cursor low in the window.
+    // The motion that was hard: making a window taller. Any spread now does it with the pointer low in the window.
     let sideways: CGFloat = 0.03 // a logged sideways spread (radial)
     let taller = Geometry.resizeScale(grip: bottom, start: 0.1, change: sideways, exponent: 1.5)
     check(taller.width == 1 && abs(taller.height - pow(1.3, 1.5)) < 1e-9, "a sideways spread makes the window taller with the bottom edge gripped")
@@ -675,9 +675,9 @@ do {
     check(Geometry.resizedAxes(top) == (false, true), "top edge: height only")
     check(Geometry.resizedAxes(right) == (true, false), "right edge: width only")
     check(Geometry.resizedAxes(topLeft) == (true, true), "corner: both")
-    check(Geometry.resizedAxes(.centre) == (true, true), "centre: both")
+    check(Geometry.resizedAxes(.centre) == (true, true), "center: both")
 
-    // Frames logged on the user's 2560×1440 display (visible area below a 30 pt menu bar).
+    // Frames logged on a 2560×1440 display (visible area below a 30 pt menu bar).
     let rightHalf = CGRect(x: 1192, y: 31, width: 1368, height: 1324)
     let s = Geometry.spans(rightHalf, screen)
     check(s.height && !s.width, "a right-snapped window spans the height")
@@ -701,7 +701,7 @@ do {
     check(full.width == rightHalf.width && full.minY == screen.minY && full.height == screen.height, "spreading at the bottom of a full-height window only fills the 2 pt it lacked (it cannot get taller)")
     let centre = Geometry.resizeScale(grip: .centre, start: 0.1, change: 0.02, exponent: 1.5)
     let fromCentre = Geometry.resizedFrame(rightHalf, scale: centre, anchor: Geometry.resizeAnchor(rightHalf, in: screen), within: screen, minimum: minimum)
-    check(fromCentre.width > rightHalf.width && fromCentre.height == screen.height && fromCentre.maxX == rightHalf.maxX, "spreading from the centre widens a right half; its height stops at the screen by itself")
+    check(fromCentre.width > rightHalf.width && fromCentre.height == screen.height && fromCentre.maxX == rightHalf.maxX, "spreading from the center widens a right half; its height stops at the screen by itself")
     let maximized = CGRect(x: 0, y: 33, width: 1512, height: 865)
     let laptop = CGRect(x: 0, y: 33, width: 1512, height: 865)
     let lowered = Geometry.resizedFrame(maximized, scale: pinched, anchor: Geometry.resizeAnchor(maximized, in: laptop, grip: bottom), within: laptop, minimum: minimum)
@@ -710,10 +710,10 @@ do {
     check(widened.maxX == rightHalf.maxX && widened.height == rightHalf.height && widened.width == 2052, "widening a right half grows it to the left, full height kept")
 }
 
-// MARK: Drop grid
+// MARK: Snap grid
 
 do {
-    let wide = CGRect(x: 0, y: 30, width: 2560, height: 1326) // the user's external display
+    let wide = CGRect(x: 0, y: 30, width: 2560, height: 1326) // an external display, as logged
     let laptop = CGRect(x: 0, y: 33, width: 1512, height: 949)
     check(GridLayout.auto(for: wide) == GridLayout(columns: 3, rows: 2), "a wide display gets three columns")
     check(GridLayout.auto(for: laptop) == GridLayout(columns: 2, rows: 2), "a laptop gets two")
@@ -804,7 +804,7 @@ do {
     check(!mute(false, changed), "and passes")
 }
 
-// The scroll the user saw after a flick up opened Mission Control (2026-11-24 20:49:07.840): the
+// A scroll logged after a flick up opened Mission Control (2026-11-24 20:49:07.840): the
 // four-finger sequence ended, macOS restarted it ~50 ms later and sent 755 pt of momentum.
 do {
     var m = ScrollMuter()
@@ -924,8 +924,8 @@ do {
     check(band.update(CGPoint(x: 101, y: 48.9)) == CGPoint(x: 101, y: 49), "vertically too")
 }
 
-// Measured (2026-11-25, bateri at the top edge): the window followed up to y 32 and stayed there,
-// then jumped to 31, the edge, only when the fingers let go.
+// Measured on 2026-11-25 with a window at the top edge: the window followed up to y 32 and stayed
+// there, then jumped to 31, the edge, only when the fingers let go.
 do {
     var band = DeadBand()
     _ = band.update(CGPoint(x: 0, y: 32))

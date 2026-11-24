@@ -11,7 +11,7 @@
 /// the gesture was decided), and when a flick opens Mission Control the Dock sends the scroll again.
 /// Those restarts carry the hand's momentum, hundreds to thousands of points, so they stay muted
 /// with it. The cost of a wider window: a real scroll whose first event falls inside it stays
-/// muted whole, as nothing later in its sequence releases the mute.
+/// muted to its end, because nothing later in its sequence releases the mute.
 struct ScrollMuter {
     /// `scrollPhase` values (same as NSEvent.Phase).
     static let phaseBegan: Int64 = 1

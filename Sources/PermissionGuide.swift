@@ -2,11 +2,11 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// System Settings' main window, found by the app's pid: its windows' owner name follows the
-/// system language. Reading window bounds needs no permission.
+/// System Settings' main window, found by the app's pid, because the owner name of its windows
+/// follows the system language. Reading window bounds needs no permission.
 enum SettingsWindow {
     static let bundleID = "com.apple.systempreferences"
-    /// Lands on Privacy & Security › Accessibility (checked on macOS 26.4).
+    /// Lands on Privacy & Security > Accessibility (checked on macOS 26.4).
     static let accessibilityURL = URL(
         string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_Accessibility"
     )!
@@ -45,9 +45,9 @@ final class GuideCardModel {
 }
 
 /// Guides the Accessibility grant the way recent Mac apps do: opens the right pane of System
-/// Settings, flies a card from the button that asked to beside the Settings window, and gives the
-/// user Tutamak's icon to drag into the list. The card follows the window and goes away on every
-/// way out: granted, Settings closed or minimized, `cancel()`.
+/// Settings, flies a card from the button that was pressed to a spot beside the Settings window,
+/// and gives the user Tutamak's icon to drag into the list. The card follows the window and goes
+/// away on every way out: granted, Settings closed or minimized, `cancel()`.
 final class PermissionGuide {
     enum End { case granted, gone }
 
@@ -152,9 +152,9 @@ final class PermissionGuide {
 
     // MARK: Hint
 
-    /// A ghost of the icon, held by the closed hand, travels from the card into the list and
+    /// A ghost of the icon, held by a closed hand, travels from the card into the list and
     /// drops there, over and over until the user drags the real one. It is drawn in a panel of
-    /// its own that the mouse passes through, spanning the card and the list.
+    /// its own that mouse events pass through, spanning the card and the list.
     private func showHint(settings: CGRect) {
         guard !ended, let panel, let icon = card.iconFrame,
               !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
@@ -248,7 +248,7 @@ final class PermissionGuide {
     }
 }
 
-/// Liquid Glass on macOS 26; a popover material on older systems (not seen on this Mac).
+/// Liquid Glass on macOS 26; a popover material on older systems (a fallback not yet tried on one).
 enum GlassBackground {
     static func wrap(_ content: NSView, cornerRadius: CGFloat) -> NSView {
         if #available(macOS 26, *) {
@@ -344,7 +344,7 @@ private struct AppPill: View {
         .overlay(DragSource(onBegin: { model.dragging = true }, onEnd: onDragEnd))
         .onHover { hovered = $0 }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Tutamak app icon, drag it into the Accessibility list")
+        .accessibilityLabel("Tutamak app icon. Drag it into the Accessibility list.")
     }
 }
 
@@ -399,9 +399,9 @@ final class AppDragView: NSView, NSDraggingSource {
     }
 }
 
-/// The drag, shown: a ghost of the icon is picked up by the hand, carried along a gentle arc into
-/// the list and dropped there with a ring; a pause, then again. It steps aside while the user
-/// drags the real icon and is gone once Tutamak is allowed.
+/// Shows the drag: a ghost of the icon is picked up by the hand, carried along a gentle arc into
+/// the list and dropped there with a ring; then a pause, and it plays again. It steps aside while
+/// the user drags the real icon and is gone once Tutamak is allowed.
 private struct DragHint: View {
     let model: GuideCardModel
     /// In the hint panel (y down): the card's icon and the spot in the list.
@@ -455,7 +455,7 @@ private struct DragHint: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    /// Along a quadratic curve that lifts over the straight line, like a hand carrying it.
+    /// A point along a quadratic curve that rises above the straight line, like a hand carrying the icon.
     private func point(at k: Double) -> CGPoint {
         let control = CGPoint(x: (from.x + to.x) / 2, y: min(from.y, to.y) - 70)
         let a = 1 - k

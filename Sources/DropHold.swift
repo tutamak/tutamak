@@ -6,7 +6,7 @@ import CoreGraphics
 /// sliding), and dropping the window into a zone halfway across the screen would be wrong. A hand
 /// that had settled when it lifted meant to drop, so the window drops at once. A hand still sliding
 /// may be about to come back, so the drop waits `clutchWait`; fingers landing in that time hold it
-/// until they either drag (the drop is cancelled) or lift again (the window drops).
+/// until they either drag (the drop is canceled) or lift again (the window drops).
 struct DropHold {
     /// Lifting while sliding at least this fast (trackpad widths per second) looks like the clutch.
     var clutchSpeed: CGFloat = 0.2
@@ -39,7 +39,7 @@ struct DropHold {
         return .wait(clutchWait)
     }
 
-    /// Every touch frame while a drop is pending. `engaged`: four fingers are down; `dragBegan` /
+    /// Called for every touch frame while a drop is pending. `engaged`: four fingers are down; `dragBegan` /
     /// `otherGesture`: they started a drag, or something else (a pinch).
     mutating func frame(engaged: Bool, dragBegan: Bool, otherGesture: Bool) -> Action? {
         guard phase != .none else { return nil }

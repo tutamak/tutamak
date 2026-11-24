@@ -181,8 +181,8 @@ struct SceneFrame: Equatable {
 }
 
 /// A gesture shown side by side: a trackpad with four fingers on the left, the screen it acts on
-/// on the right. Flat and in the system's colours, light or dark; the fingers are the accent
-/// colour, with a trail where they slide and a ring where they tap.
+/// on the right. Flat and in the system's colors, light or dark; the fingers are the accent
+/// color, with a trail where they slide and a ring where they tap.
 struct GestureStage: View {
     let frame: SceneFrame
     @Environment(\.colorScheme) private var scheme
@@ -394,7 +394,7 @@ private struct StageRenderer {
         }
     }
 
-    /// The macOS arrow: black with a white outline.
+    /// The macOS pointer: a black arrow with a white outline.
     private func drawPointer(_ ctx: inout GraphicsContext, at p: CGPoint) {
         var arrow = Path()
         let outline: [(CGFloat, CGFloat)] = [(0, 0), (0, 13.5), (3.4, 10.4), (5.8, 15.6), (8, 14.6), (5.7, 9.6), (10, 9.6)]

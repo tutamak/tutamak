@@ -37,11 +37,11 @@ $(ICON): tools/make-icon.swift
 	swift tools/make-icon.swift build/AppIcon.iconset
 	iconutil -c icns build/AppIcon.iconset -o $(ICON)
 
-# Opens it as a menu bar app.
+# Opens the app; it lives in the menu bar.
 run: build
 	open $(BUNDLE)
 
-# Opens the app and follows its log (Ctrl-C only stops following).
+# Opens the app and follows its log (Ctrl-C stops following; the app keeps running).
 debug: build
 	@$(STOP)
 	open $(BUNDLE) --args --debug

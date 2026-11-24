@@ -11,17 +11,17 @@ enum SnapZone: Equatable, CustomStringConvertible {
         switch self {
         case .left: "left half"
         case .right: "right half"
-        case .maximize: "full screen"
+        case .maximize: "whole screen"
         }
     }
 }
 
-/// Which edges of a window a pinch moves, chosen by where the cursor is in the window when the
+/// Which edges of a window a pinch moves, chosen by where the pointer is in the window when the
 /// resize starts, so the hand can always make its easy sideways spread: near the left or right edge
 /// the width changes, near the top or bottom edge the height, right in a corner both, and in the
 /// middle the whole window scales.
 struct ResizeGrip: Equatable, CustomStringConvertible {
-    /// Where the cursor is along one axis: near the min edge, in the middle, or near the max edge.
+    /// Where the pointer is along one axis: near the min edge, in the middle, or near the max edge.
     enum Side { case low, middle, high }
 
     var x: Side
@@ -32,12 +32,12 @@ struct ResizeGrip: Equatable, CustomStringConvertible {
         self.y = y
     }
 
-    /// `spot` is the cursor's place in the window, 0..1 from its top-left corner (CG coordinates);
+    /// `spot` is the pointer's place in the window, 0..1 from its top-left corner (CG coordinates);
     /// `size` is the window's size, to tell which edge is physically nearer.
     ///
-    /// The middle ninth of the window is the centre. A corner is the outer sixth on both axes, kept
+    /// The middle ninth of the window is the center. A corner is the outer sixth on both axes, kept
     /// small so that "near the bottom" means the bottom edge along almost all of its length.
-    /// Anywhere else the edge nearest the cursor is gripped.
+    /// Anywhere else the edge nearest the pointer is gripped.
     init(spot: CGPoint, size: CGSize) {
         // How far from the middle toward an edge, per axis: 0 in the middle, 1 at the edge.
         let ox = abs(spot.x * 2 - 1)
@@ -66,14 +66,14 @@ struct ResizeGrip: Equatable, CustomStringConvertible {
     var isCentre: Bool { self == .centre }
 
     var description: String {
-        if isCentre { return "centre" }
+        if isCentre { return "center" }
         let vertical = y == .low ? "top" : y == .high ? "bottom" : nil
         let horizontal = x == .low ? "left" : x == .high ? "right" : nil
         switch (vertical, horizontal) {
         case let (v?, h?): return "\(v)-\(h) corner"
         case let (v?, nil): return "\(v) edge"
         case let (nil, h?): return "\(h) edge"
-        default: return "centre"
+        default: return "center"
         }
     }
 }
@@ -92,7 +92,7 @@ struct GridLayout: Equatable, CustomStringConvertible {
     }
 }
 
-/// What the drop grid is set to in the menu.
+/// What the snap grid is set to in the settings.
 enum GridChoice: Equatable {
     case off
     case auto
@@ -137,7 +137,7 @@ enum Geometry {
         displays.first { $0.contains(point) }
     }
 
-    /// Keeps the cursor on a display. A point outside every display is clamped
+    /// Keeps the pointer on a display. A point outside every display is clamped
     /// to the bounds of the display the previous point was on.
     static func clamp(_ point: CGPoint, previous: CGPoint, displays: [CGRect]) -> CGPoint {
         if display(containing: point, in: displays) != nil { return point }
@@ -148,8 +148,8 @@ enum Geometry {
         )
     }
 
-    /// The snap zone for a cursor pushed against the outer edge of a display.
-    /// Inner edges where two displays meet do not count; the cursor crosses there to the other display.
+    /// The snap zone for a pointer pushed against the outer edge of a display.
+    /// Inner edges where two displays meet do not count; the pointer crosses there to the other display.
     /// In a corner the side edge wins over the top edge.
     static func snapZone(at p: CGPoint, displays: [CGRect], edge: CGFloat = 3)
         -> (zone: SnapZone, display: CGRect)?
@@ -173,7 +173,7 @@ enum Geometry {
         }
     }
 
-    /// The cells of `layout` within `visible`, row by row from the top left. Neighbouring cells
+    /// The cells of `layout` within `visible`, row by row from the top left. Neighboring cells
     /// share their edges exactly.
     static func gridCells(_ layout: GridLayout, in visible: CGRect) -> [CGRect] {
         var cells: [CGRect] = []
@@ -185,7 +185,7 @@ enum Geometry {
         return cells
     }
 
-    /// The zone to drop a window into for the cursor at `p`: the cell under it, or, within `seam`
+    /// The zone to drop a window into for the pointer at `p`: the cell under it, or, within `seam`
     /// (a fraction of a cell) of a line between two cells, both of them. So a 2×2 grid gives
     /// quarters, halves on its middle lines and the whole area where they cross; a 3×2 grid gives
     /// sixths, two-thirds on its column lines and full-height thirds on its middle line.
@@ -219,9 +219,9 @@ enum Geometry {
     }
 
     /// Which point of a window stays put while it resizes, per axis: 0 keeps the min edge, 1 the max
-    /// edge, 0.5 the centre. An edge resting on the edge of `bounds` stays there (a snapped window
+    /// edge, 0.5 the center. An edge resting on the edge of `bounds` stays there (a snapped window
     /// keeps hugging the screen). Otherwise the edge away from the grip stays, so the edge near the
-    /// cursor is the one that moves; with the grip in the middle the window resizes around its centre.
+    /// pointer is the one that moves; with the grip in the middle the window resizes around its center.
     static func resizeAnchor(
         _ frame: CGRect, in bounds: CGRect, grip: ResizeGrip = .centre, tolerance: CGFloat = 8
     ) -> CGPoint {
@@ -251,14 +251,14 @@ enum Geometry {
     }
 
     /// Which axes a resize changes: the gripped edge's axis; both from a corner or the middle.
-    /// No exceptions, so the cursor alone says what changes. An axis already as long as the screen
+    /// No exceptions, so the pointer alone decides what changes. An axis already as long as the screen
     /// (a snapped half's height) can still shrink; spreading just leaves it at full length.
     static func resizedAxes(_ grip: ResizeGrip) -> (width: Bool, height: Bool) {
         grip.isCentre ? (true, true) : (grip.x != .middle, grip.y != .middle)
     }
 
     /// How much to scale a window for a hand whose spread (mean distance of the fingers from their
-    /// centre) went from `start` by `change`: like a zoom, by the ratio of the spreads to `exponent`,
+    /// center) went from `start` by `change`: like a zoom, by the ratio of the spreads to `exponent`,
     /// along the axes `resizedAxes` picks. Only the overall spread counts, never its direction, so
     /// the easy sideways spread works for the height too.
     static func resizeScale(grip: ResizeGrip, start: CGFloat, change: CGFloat, exponent: CGFloat) -> CGSize {

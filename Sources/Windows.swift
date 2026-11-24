@@ -1,7 +1,7 @@
 import AppKit
 import ApplicationServices
 
-/// A movable window under the cursor.
+/// A movable window under the pointer.
 struct TargetWindow {
     let element: AXUIElement
     let pid: pid_t
@@ -56,9 +56,9 @@ enum AX {
 
     /// Applies a size, then places the window from the size the app actually accepted, so a window
     /// that refuses a size (a minimum, a fixed size, size steps) stays anchored instead of sliding.
-    /// `anchor` is the point that stays put: 0 = min edge, 1 = max edge, 0.5 = centre.
+    /// `anchor` is the point that stays put: 0 = min edge, 1 = max edge, 0.5 = center.
     static func setFrame(_ element: AXUIElement, _ frame: CGRect, anchor: CGPoint) {
-        // When growing, move first: apps keep windows on screen by cutting a size that would push
+        // When growing, move first: apps keep windows on screen by trimming a size that would push
         // past the screen edge from where the window still is. A window hugging the right edge
         // would otherwise be held at its width, and the anchoring below would take that as the
         // app's choice.

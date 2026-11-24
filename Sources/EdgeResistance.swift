@@ -1,11 +1,11 @@
 import CoreGraphics
 
-/// When a window edge reaches a display edge (including below the menu bar, above the Dock,
-/// and where two displays meet), absorbs movement for a while: the edge sticks there, gives way
-/// after being pushed `strength` further, and lets go at once when pulled back. Pure and tested.
+/// Absorbs movement for a while when a window edge reaches a display edge (including below the
+/// menu bar, above the Dock, and where two displays meet): the edge sticks there, gives way after
+/// being pushed `strength` further, and lets go at once when pulled back. Pure and tested.
 ///
-/// An edge already resting on a line (say, pulling a snapped window away) meets no resistance;
-/// resistance starts only when an edge approaches a line and touches it.
+/// An edge already resting on a line (say, when a snapped window is pulled away) meets no
+/// resistance; resistance starts only when an edge approaches a line and touches it.
 struct EdgeResistance {
     /// How far past the edge the window must be pushed to break through (pt).
     var strength: CGFloat = 50
@@ -26,7 +26,7 @@ struct EdgeResistance {
     ///   - visibleFrames: the displays' visible areas (CG/AX coordinates).
     /// - Returns: the movement to apply.
     mutating func apply(_ delta: CGVector, frame: CGRect, visibleFrames: [CGRect]) -> CGVector {
-        // Vertical lines only from displays that overlap the window vertically; horizontal ones likewise.
+        // Vertical lines count only for displays that overlap the window vertically; horizontal ones likewise.
         let xLines = visibleFrames
             .filter { $0.minY < frame.maxY && $0.maxY > frame.minY }
             .flatMap { [$0.minX, $0.maxX] }

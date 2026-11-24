@@ -2,7 +2,7 @@ import AppKit
 import Observation
 import SwiftUI
 
-/// What the setup reads and changes. The app delegate wires the real ones; captures pass fakes,
+/// What the setup reads and changes. The app delegate wires up the real ones; captures pass fakes,
 /// so no state of the Mac has to be changed to draw a step.
 struct SetupActions {
     var readStatus: () -> SetupStatus
@@ -21,7 +21,7 @@ struct SetupActions {
     var menuBarHint: (Bool) -> Void = { _ in }
     /// Turns macOS's four-finger gestures off (backing them up first); runs off the main thread.
     var turnOffSystemGestures: () -> (ok: Bool, output: String) = { (true, "") }
-    /// Called after the setup changed a setting in the defaults.
+    /// Called after the setup changes a setting in the defaults.
     var settingsChanged: () -> Void = {}
 }
 
@@ -33,9 +33,9 @@ final class SetupModel {
     private(set) var status: SetupStatus
     /// A primary action that takes a moment (turning gestures off) is running.
     private(set) var busy = false
-    /// What went wrong with the last action, said under the step.
+    /// What went wrong with the last action, shown under the step.
     private(set) var failure: String?
-    /// The card beside System Settings is out.
+    /// The card beside System Settings is showing.
     private(set) var guiding = false
     /// Where the footer's primary button is, in the hosting view (y down), so the card can fly
     /// out of it.
@@ -43,16 +43,16 @@ final class SetupModel {
     @ObservationIgnored var onAllowAccess: () -> Void = {}
     @ObservationIgnored var onLeaveStep: () -> Void = {}
     @ObservationIgnored private var demoGranted = false
-    /// Bumped when the setup changed a setting, so the views read it again.
+    /// Bumped when the setup changes a setting, so the views read it again.
     private(set) var settingsVersion = 0
     /// The practice's fingers and window, read by the drawing on each frame.
     @ObservationIgnored let feed = PracticeFeed()
     /// The gestures tried in the practice.
     private(set) var practiced: Set<GestureDemo> = []
-    /// The window is open, so the current step's bubble may be out.
+    /// The window is open, so the current step's bubble may be showing.
     @ObservationIgnored private var open = false
     /// The window is the key window: only then may the practice run. Left on behind other
-    /// windows, it would quietly turn every gesture on the Mac off.
+    /// windows, it would quietly turn off every gesture on the Mac.
     @ObservationIgnored private var focused = false
     /// Holds every animation at this moment (seconds), for captures; nil lets them run.
     var artTime: Double?
@@ -82,7 +82,7 @@ final class SetupModel {
         leave(step)
     }
 
-    /// The window became key, or stopped being it (another app in front, minimized, closing).
+    /// The window became key, or stopped being key (another app in front, minimized, closing).
     func focusChanged(_ key: Bool) {
         guard key != focused else { return }
         focused = key
@@ -211,11 +211,8 @@ final class SetupModel {
     }
 }
 
-/// The setup's window: one instance, brought forward when opened again.
-///
-/// An accessory app's `NSApp.activate()` is only a request on macOS 14 and later; a window opened
-/// from the menu can land behind the front app (measured in Evlat). So the app is a regular one,
-/// with a Dock icon, while the setup is open.
+/// The setup's window: one instance, brought forward when opened again; the app has a Dock icon
+/// while it is open (`AppWindows`).
 final class SetupWindowController: NSObject, NSWindowDelegate {
     static let size = CGSize(width: 460, height: 590)
 
@@ -272,13 +269,13 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     var windowNumber: Int? { window?.windowNumber }
 
     func show(appearance: NSAppearance? = nil) {
+        if self.window == nil { AppWindows.opened() }
         let window = self.window ?? makeWindow()
         self.window = window
         if let appearance { window.appearance = appearance }
         model.refresh()
         model.appeared()
         startPolling()
-        NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         window.makeKeyAndOrderFront(nil)
     }
@@ -329,7 +326,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
         // Drop the SwiftUI content so nothing in it keeps drawing.
         window?.contentView = nil
         window = nil
-        NSApp.setActivationPolicy(.accessory)
+        AppWindows.closed()
         onClose()
     }
 }

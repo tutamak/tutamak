@@ -1,16 +1,27 @@
 # Tutamak
 
-Four-finger trackpad gestures for windows, acting on the window under the cursor:
+Four-finger trackpad gestures for macOS windows. Each one acts on the window under the pointer:
 
-| With four fingers | Does |
+| With four fingers | What happens |
 | --- | --- |
-| Slide | Moves the window, as if grabbed by its title bar. Release at a screen edge to snap it, or over the snap grid (if on) to drop it into a zone. |
-| Pinch / spread | Resizes the window live: where the cursor is in the window picks the edges. |
+| Slide | Moves the window, as if you had grabbed its title bar. Release at a screen edge to snap it, or over the snap grid (if it is on) to drop it into a zone. |
+| Pinch / spread | Resizes the window live; where the pointer is in the window picks which edges move. |
 | Tap | Maximizes the window; tap again to restore it. |
-| Quick sideways flick | Switches to the desktop on that side (the old macOS habit). |
+| Quick sideways flick | Switches desktops, like the macOS swipe it replaces. |
 | Quick flick up / down (off by default) | Opens Mission Control / App Exposé; another flick closes it. |
 
-It is a small macOS menu bar app (Swift; its only UI is the menu).
+Tutamak is a small macOS menu bar app written in Swift: a menu, a settings window and a setup
+assistant.
+
+**Requirements:** macOS 14 or later on Apple silicon, a trackpad (built-in or Magic Trackpad),
+and the Xcode command line tools to build it. It reads raw finger positions through Apple's
+private `MultitouchSupport` framework, so it cannot be distributed through the App Store.
+
+### The name
+
+*Tutamak* is Turkish for "handle": the part of a thing you take hold of. The app gives every
+window one, under four fingers. The name was chosen by Claude, Anthropic's AI model, which wrote
+the app in Claude Code.
 
 ## Install
 
@@ -19,20 +30,26 @@ make install          # builds, installs as ~/Applications/Tutamak.app and opens
 ```
 
 On first launch the **setup assistant** opens. It asks for the **Accessibility** permission the
-way recent Mac apps do: System Settings opens on Privacy & Security > Accessibility, a card docks
-beside it with Tutamak's icon, and a hint shows the icon being dragged into the list; drop it there
-(or switch Tutamak on if it is listed) and the setup comes back. It then offers to turn off macOS's
-four-finger gestures (only on your press; what stays on three fingers is said), lets you try each
-gesture on a live drawing of your fingers (no window moves while you practice), picks the snap grid
-and Open at Login, and points at Tutamak's menu bar icon. Run it again from the menu: **Setup
-Assistant…**. The app is signed with a persistent Apple Development identity, so the permission
-survives rebuilds.
+way recent Mac apps do: System Settings opens to Privacy & Security > Accessibility, and a card
+docks beside it with Tutamak's icon and a hint that shows the icon being dragged into the list.
+Drop the icon there (or switch Tutamak on if it is already listed) and the assistant comes back.
+
+It then offers to turn off the macOS four-finger gestures (only when you press the button; it
+says which gestures stay on three fingers), lets you try each gesture on a live drawing of your
+fingers (no window moves while you practice), offers the snap grid and Open at login, and points
+out Tutamak's menu bar icon. To run it again, choose **Setup Assistant…** from the menu or in
+Settings.
+
+The build signs the app with an Apple Development identity if one is installed, so the permission
+survives rebuilds. Without one the app is ad-hoc signed, and the permission has to be granted
+again after every build.
 
 ### macOS four-finger gestures
 
-Even with "three fingers" chosen for Mission Control and Spaces in System Settings, macOS keeps its
-four-finger gestures on, and while they are on they fire on every drag as well. To turn them off,
-use **Turn off macOS four-finger gestures…** in the menu, or:
+Choosing three fingers for Mission Control and for switching desktops in System Settings does not
+turn the four-finger gestures off, and while they are on they fire on every Tutamak drag as well.
+To turn them off, use the setup assistant or **Settings > macOS > Four-finger swipes and pinch**,
+or run:
 
 ```sh
 make gestures-off       # backs up the current values, turns four-finger gestures off
@@ -41,93 +58,106 @@ make gestures-restore   # restores the backup
 ```
 
 Three-finger gestures are left alone. If the change does not take effect right away, log out and
-back in. Backup: `~/Library/Application Support/Tutamak/gestures-backup.tsv`.
+back in. The backup is kept in `~/Library/Application Support/Tutamak/gestures-backup.tsv`.
 
-Tutamak's flicks stand in for what is lost: sideways switches desktops, and with **Flick Up/Down
-for Mission Control** on (under **Gestures**), up opens Mission Control and down App Exposé.
+Tutamak's flicks stand in for what is lost: a sideways flick switches desktops, and with **Flick
+up for Mission Control** on (**Settings > Gestures**), a flick up opens Mission Control and a flick
+down opens App Exposé.
 
 ## Usage
 
-- **Drag:** put four fingers down with the cursor over a window and slide. The window comes to the
-  front and follows your fingers; the cursor moves with it.
-- **Snap:** push the cursor against the outer edge of a display (left/right → half the screen,
-  top → full screen) and release.
-- **Snap grid** (off by default; menu **Snap Grid**): while dragging, the display is drawn as a
-  grid of zones just below the window, and letting go drops the window into the zone under the
-  cursor. On a line between two zones it takes both, so one grid gives several sizes:
+- **Drag:** put four fingers down with the pointer over a window and slide. The window comes to
+  the front and follows your fingers; the pointer moves with it.
+- **Snap:** push the pointer against the outer edge of a display and release. The left or right
+  edge gives that half of the screen, the top edge the whole screen.
+- **Snap grid** (off by default; **Settings > Windows**): while you drag, a grid of zones is drawn
+  over the display, just behind the window, and letting go drops the window into the zone under
+  the pointer. On a line between two zones it takes both, so one grid gives several sizes:
 
   | Grid | Zones |
   | --- | --- |
-  | Halves & Quarters (2 × 2) | quarters; halves on the middle lines; the whole screen where they cross |
-  | Thirds & Sixths (3 × 2) | sixths; two-thirds on the column lines; full-height thirds on the middle line |
+  | Halves and quarters (2 × 2) | quarters; halves on the middle lines; the whole screen where they cross |
+  | Thirds and sixths (3 × 2) | sixths; two-thirds on the column lines; full-height thirds on the middle line |
   | Thirds (3 × 1) | thirds; two-thirds on the column lines |
 
-  **Auto** picks 3 × 2 for displays at least 2200 pt wide and 2 × 2 for others. The screen edges
-  still win (left/right half, top full screen). Hold **⌥** while letting go to place the window
-  exactly where it is. Lifting is also how a long drag carries on (the clutch), so a hand that
-  lifts while still sliding does not drop the window at once: it waits up to 0.6 s for the fingers
-  to come back and keep dragging. A hand that had settled drops it right away. The log notes the
-  lift speed and how soon the fingers came back, to tune that.
-- **Clutch:** lift your fingers and put them back to keep dragging (the cursor travels with the
+  **Auto** picks 3 × 2 for displays at least 2200 pt wide and 2 × 2 for the rest. The screen edges
+  still win (the left or right half, the whole screen at the top). Hold **⌥** while letting go to
+  leave the window exactly where it is. Lifting is also how a long drag carries on (the clutch,
+  below), so a hand that lifts while still sliding does not drop the window at once: the drop
+  waits up to 0.6 s for the fingers to come back and keep dragging. A hand that had come to rest
+  drops the window right away. The log records the lift speed and how soon the fingers came back,
+  which helps to tune this.
+- **Clutch:** lift your fingers and put them back to keep dragging (the pointer travels with the
   window, so the same window is grabbed again).
 - **Resize:** spread the fingers apart to grow the window, pinch them together to shrink it, like
   a zoom: the window scales with how far the hand opens. Which edges move depends on where the
-  cursor is in the window, not on which way the hand opens, so the easy sideways spread works for
+  pointer is in the window, not on which way the hand opens, so the easy sideways spread works for
   every direction:
 
-  | Cursor in the window | Changes |
+  | Pointer in the window | What changes |
   | --- | --- |
   | nearer the left or right edge | the width (that edge moves) |
   | nearer the top or bottom edge | the height (that edge moves) |
-  | right in a corner (outer sixth both ways) | both (that corner moves) |
-  | middle (the central ninth) | both, around the centre |
+  | in a corner (the outer sixth on both axes) | both (that corner moves) |
+  | in the middle (the central ninth) | both, around the center |
 
-  The cursor alone decides, whatever the window's shape: on a full-height window (a snapped half,
-  a maximized window) the top or bottom still changes the height. It can only shrink there, so a
-  spread does nothing until the window is shorter than the screen. An edge resting on a screen
-  edge stays put, so a snapped half keeps hugging its side.
-  Spreading far enough fills the screen. The cursor stays on the same spot of the window, so you
-  can pinch again to carry on. If an app refuses a size (a minimum, a fixed size), the window stays
-  anchored instead of sliding.
+  The pointer alone decides, whatever the window's shape: on a full-height window (a snapped half,
+  a maximized window) the top or bottom still changes the height. Such a window can only get
+  shorter, so a spread does nothing until it is shorter than the screen. An edge resting on a
+  screen edge stays put, so a snapped half keeps hugging its side. Spreading far enough fills the
+  screen. The pointer stays on the same spot of the window, so you can pinch again to carry on. If
+  an app refuses a size (a minimum, a fixed size), the window stays anchored instead of sliding.
 - **Maximize / restore:** tap with four fingers (land together, lift quickly, without sliding).
-  Tapping a window Tutamak maximized, or snapped to full screen, restores its earlier frame.
-- **Switch desktops:** a quick sideways four-finger flick (the old macOS habit) switches to the
-  desktop on that side instead of dragging, by posting the "Move left/right a space" shortcut.
-  A flick is told apart by how it starts: the fingers land and sweep sideways fast. Resting the
-  fingers for a moment before sliding always drags, and so does re-landing right after a drag.
-  A drag that starts like a flick waits up to ~0.14 s before the window moves.
-- **Mission Control / App Exposé** (off by default; **Gestures > Flick Up/Down for Mission
-  Control**): a quick four-finger flick up opens Mission Control, down shows the front app's
-  windows (App Exposé), by posting the "Mission Control" and "Application windows" shortcuts.
-  Another flick, either way, closes what is open. Told apart from a drag the same way as the
-  sideways flick, over the same finger distance. While it is on, a vertical drag that starts fast
-  also waits up to ~0.14 s; that is why it is off by default.
+  Tapping a window that Tutamak maximized, or snapped to the whole screen, restores its earlier
+  frame.
+- **Switch desktops:** a quick sideways four-finger flick switches desktops instead of dragging,
+  as the macOS swipe did: flicking left brings in the desktop on the right. It works by posting
+  the "Move left a space" or "Move right a space" keyboard shortcut. A flick is told apart from a
+  drag by how it starts: the fingers land and sweep sideways fast. Resting the fingers for a
+  moment before sliding always drags, and so does landing again right after a drag. A drag that
+  starts like a flick waits up to ~0.14 s before the window moves.
+- **Mission Control / App Exposé** (off by default; **Settings > Gestures > Flick up for Mission
+  Control**): a quick four-finger flick up opens Mission Control, and a flick down shows the front
+  app's windows (App Exposé), by posting the "Mission Control" and "Application windows" keyboard
+  shortcuts. Another flick, either way, closes what is open. These flicks are told apart from a
+  drag the same way as a sideways flick, over the same finger distance. While they are on, a
+  vertical drag that starts fast also waits up to ~0.14 s; that is why they are off by default.
 - **One touch, one gesture:** each touch is decided at the start (slide, flick, pinch or tap) and
-  stays that until the fingers lift. Every decision is logged, to tune the thresholds.
+  stays that way until the fingers lift. Every decision is logged, which helps to tune the
+  thresholds.
 - Pinch, tap and sideways flicks can each be turned off, and up/down flicks turned on, under
-  **Gestures** in the menu.
+  **Settings > Gestures**; pointing at a gesture there plays a preview of it.
 - **Smooth motion:** the window moves once per display refresh, following the fingers with a short
   catch-up, instead of once per trackpad frame (which does not line up with the display). Snapping
-  animates the window into place; turn it off with **Animate Snapping** if an app resizes jerkily.
+  animates the window into place; turn that off with **Settings > Windows > Animate snapping** if
+  an app resizes jerkily.
 - **Edge resistance:** when a window edge reaches a display edge (including below the menu bar,
-  above the Dock, and where two displays meet), it sticks there; push ~4 mm further to break
-  through, pull back to let go at once. Can be turned off from the menu (**Edge Resistance**).
-  Letting go leaves it there: as a hand lifts, the fingers left behind roll back, and only a
-  whole hand of four moves a window.
-- Movement is smoothed so the window does not jitter while your fingers rest (One Euro filter):
-  hard when slow, light when fast. The window does not move until it would move at least one point.
+  above the Dock, and where two displays meet), it sticks there. Push ~4 mm further to break
+  through, or pull back to let go at once. Lifting the hand leaves the window at the edge: the
+  fingers left behind roll back as a hand lifts, and only a whole hand of four moves a window.
+  Edge resistance can be turned off in **Settings > Windows**.
+- Movement is smoothed (One Euro filter) so the window does not jitter while your fingers rest:
+  heavily when slow, lightly when fast. The window does not move until it would move at least one
+  point.
 - A four-finger touch that rests before lifting does nothing; a slide starts only once the fingers
-  move a little. (A quick still tap maximizes, see above.)
-- With the macOS four-finger gestures off, a four-finger slide also reaches the app underneath as a
-  scroll. Tutamak mutes that scroll (and the momentum after you lift) while four fingers are engaged,
-  and logs which zoom/rotate/swipe gesture events arrive in that time (they are not muted yet).
-  A scroll that restarts within 0.3 s of the fingers letting go is the same hand: macOS restarts the
-  scroll as a fast hand lifts, and the Dock sends it again when a flick opens Mission Control. It
-  stays muted with its momentum, which would otherwise scroll the window by up to thousands of points.
-- Menu: a single "Ready" line when all is well (otherwise each problem, leading to its fix),
-  Enabled, Gestures (Pinch to Resize, Tap to Maximize, Flick to Switch Desktops, Flick Up/Down
-  for Mission Control), Speed, Snap Grid, Edge Resistance, Animate Snapping, Launch at Login,
-  Rescan Trackpads, Setup Assistant. A missing permission's line opens the setup at its step.
+  move a little. (A quick, still tap maximizes; see above.)
+- With the macOS four-finger gestures off, a four-finger slide also reaches the app underneath as
+  a scroll. Tutamak mutes that scroll (and the momentum after you lift) while four fingers are
+  engaged, and logs which zoom, rotate and swipe gesture events arrive in that time (those are not
+  muted yet). A scroll that restarts within 0.3 s of the fingers letting go comes from the same
+  hand: macOS restarts the scroll as a fast hand lifts, and the Dock sends it again when a flick
+  opens Mission Control. It stays muted along with its momentum, which would otherwise scroll the
+  window by up to thousands of points.
+- Menu bar icon: the app icon in miniature, a dish with four fingertips. It is dimmed while
+  Tutamak is paused, and shows a small dot while something needs attention (a permission, the
+  macOS gestures).
+- Menu: a single "Ready" line when all is well (otherwise one line per problem, each leading to
+  its fix), Enabled, Settings… (⌘,), Setup Assistant…, Quit. The line for a missing permission
+  opens the setup assistant.
+- Settings: General (on/off, Open at login, speed), Gestures (each one, with a preview of the one
+  pointed at), Windows (snap grid, edge resistance, animate snapping), macOS (Accessibility, the
+  macOS four-finger gestures with Turn Off and Restore, the shortcuts the flicks need) and About
+  (trackpads and Rescan, version, Setup Assistant).
 - There are no keyboard shortcuts: window managers such as Magnet and Rectangle already own the
   usual ones (⌃⌥ arrows and letters), and macOS has its own tiling shortcuts.
 
@@ -140,9 +170,10 @@ make check      # starts without asking for permission, prints trackpad/permissi
 make debug      # opens the app and follows its log (drag, zone, snap)
 make run        # opens it from build/
 build/Tutamak.app/Contents/MacOS/Tutamak --setup-demo
-                # only the setup, with Accessibility reading as not allowed and every setting in
-                # memory: the card beside Settings can be tried on a Mac already set up. It reads no
-                # trackpad, so the practice is tried from the installed app's Setup Assistant
+                # runs only the setup assistant, with Accessibility reported as not allowed and
+                # every setting kept in memory, so the card beside System Settings can be tried on
+                # a Mac that is already set up. It reads no trackpad; to try the practice step, use
+                # Setup Assistant in the installed app
 ```
 
 The log can also be followed at any time with:
@@ -152,7 +183,7 @@ log stream --level info --predicate 'subsystem == "local.tutamak"'
 ```
 
 Gesture lines (what each touch became, the resize grip, drops, refused sizes) are logged at notice
-level, so the system keeps them and the last gestures can be read back afterwards:
+level, so the system keeps them and the most recent gestures can be read back afterward:
 
 ```sh
 log show --last 10m --style compact --predicate 'subsystem == "local.tutamak"'
@@ -161,53 +192,62 @@ log show --last 10m --style compact --predicate 'subsystem == "local.tutamak"'
 ### How it works
 
 - `Sources/Multitouch.swift`: raw finger frames from Apple's private `MultitouchSupport` framework
-  (declarations from Karabiner-Elements). Because it is a private framework the app cannot go on the
-  App Store; if a macOS update changes the struct, `make touches` shows it.
-- `Sources/GestureTracker.swift`: decides what each touch is (slide, flick, pinch, tap). Pure, tested.
+  (declarations from Karabiner-Elements). Because the framework is private, the app cannot go on
+  the App Store; if a macOS update changes the struct, `make touches` shows it.
+- `Sources/GestureTracker.swift`: decides what each touch is (slide, flick, pinch, tap). Pure and
+  tested.
 - `Sources/GestureController.swift`: turns gestures into window actions: moves and snaps windows,
-  resizes them on a pinch, maximizes/restores them on a tap, posts a shortcut on a flick.
+  resizes them on a pinch, maximizes or restores them on a tap, posts a shortcut on a flick.
 - `Sources/Animator.swift`: paces moves and live resizes to the display refresh; animates snapping,
   maximizing and restoring.
-- `Sources/SetupFlow.swift`: the setup's steps and what each asks for, from the Mac's state. Pure,
-  tested. `SetupWindow.swift` holds its model and window, `SetupViews.swift` its views.
+- `Sources/SetupFlow.swift`: the setup assistant's steps and what each asks for, given the Mac's
+  state. Pure and tested. `SetupWindow.swift` holds its model and window, `SetupViews.swift` its
+  views.
 - `Sources/PermissionGuide.swift`: the card beside System Settings (found by its pid) with the
-  draggable icon and the drag hint; `GuidePlacement.swift` decides where it docks. Pure, tested.
+  draggable icon and the drag hint. `GuidePlacement.swift` decides where it docks (pure and
+  tested).
 - `Sources/GestureArt.swift`: the gesture drawings (a trackpad beside a screen); `Practice.swift`
-  feeds them the real fingers while the setup's practice is on.
+  feeds them the real fingers while the setup assistant's practice is on.
 - `Sources/MenuBarHint.swift`: the bubble under the menu bar icon at the end of the setup.
+- `Sources/MenuBarIcon.swift`: the menu bar icon. `SettingsWindow.swift`: the settings window.
 - `tools/make-icon.swift`: draws the app icon; no image is checked in.
 - `Sources/SystemShortcut.swift`: reads the Mission Control keyboard shortcuts a flick stands for
-  ("Move left/right a space", "Mission Control", "Application windows") and posts them.
+  ("Move left a space", "Move right a space", "Mission Control", "Application windows") and posts
+  them.
 - `Sources/Windows.swift`: Accessibility (AX) calls. Only the latest position is applied, so move
   requests do not pile up in slow apps.
 - `Sources/Geometry.swift`: display edges, zones, the snap grid, resize frames and coordinate
-  math. Pure, tested.
+  math. Pure and tested.
 - `Sources/Overlay.swift`: the snap preview and the grid drawn while dragging. The grid is ordered
-  just below the dragged window, whose window server ID comes from the private
+  just behind the dragged window, whose window server ID comes from the private
   `_AXUIElementGetWindow` (as in Rectangle and yabai).
-- `Sources/Smoothing.swift`: the jitter filter (One Euro) and a one-point dead band. Pure, tested.
-- `Sources/EdgeResistance.swift`: window edges sticking to display edges. Pure, tested.
-- `Sources/DropHold.swift`: when a window released over the grid drops (at once, or after waiting
-  to see whether the fingers come back). Pure, tested.
+- `Sources/Smoothing.swift`: the jitter filter (One Euro) and a one-point dead band. Pure and
+  tested.
+- `Sources/EdgeResistance.swift`: window edges sticking to display edges. Pure and tested.
+- `Sources/DropHold.swift`: decides when a window released over the grid drops (at once, or after
+  waiting to see whether the fingers come back). Pure and tested.
 - `Sources/ScrollBlocker.swift`: listens to scroll events and zeroes their deltas while four fingers
   are engaged (it does not drop them, so apps never see a half-finished scroll sequence). The
-  decision is made by `ScrollMuter.swift`. Pure, tested.
+  decision is made by `ScrollMuter.swift` (pure and tested).
 
 ## Known limitations
 
 - Full-screen windows and windows whose position cannot be set (the Dock, the desktop) are not moved.
-- If three fingers land and slide before the fourth arrives, macOS's three-finger gesture may start first.
-- Flinging a window sideways the moment the fingers land switches desktops instead (and, with up/down
-  flicks on, flinging it up or down opens Mission Control or App Exposé); rest the fingers briefly
-  first. The switch happens at once, it does not track the fingers like the system gesture.
-- Flicks need their shortcuts on under Keyboard Shortcuts > Mission Control ("Move left/right a
-  space", and for up/down "Mission Control" and "Application windows"; all are on by default); the
-  menu warns when one is off. `Tutamak --flick left|right|up|down` posts a flick's shortcut on its own.
-- The trackpad aspect ratio is assumed constant (0.66); vertical speed may feel slightly different on
-  the built-in and external trackpads.
+- If three fingers land and slide before the fourth arrives, the macOS three-finger gesture may
+  start first.
+- Flinging a window sideways the moment the fingers land switches desktops instead (and, with
+  up/down flicks on, flinging it up or down opens Mission Control or App Exposé); rest the fingers
+  briefly first. The switch happens at once; it does not track the fingers as the system gesture
+  does.
+- Flicks need their keyboard shortcuts turned on in System Settings > Keyboard > Keyboard
+  Shortcuts > Mission Control ("Move left a space" and "Move right a space", and for up/down
+  "Mission Control" and "Application windows"; all are on by default). The menu warns when one is
+  off. `Tutamak --flick left|right|up|down` posts a flick's shortcut on its own.
+- The trackpad aspect ratio is assumed constant (0.66), so vertical speed may feel slightly
+  different on built-in and external trackpads.
 - Trackpads are restarted automatically when one is added or removed (a Bluetooth trackpad that
   reconnects comes back as a new device), when the display configuration changes, and after sleep.
-  If a trackpad still does not respond, use **Rescan Trackpads** in the menu.
+  If a trackpad still does not respond, use **Settings > About > Rescan**.
 
 ## Uninstall
 
@@ -215,3 +255,7 @@ log show --last 10m --style compact --predicate 'subsystem == "local.tutamak"'
 make gestures-restore   # if you turned four-finger gestures off
 make uninstall
 ```
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).

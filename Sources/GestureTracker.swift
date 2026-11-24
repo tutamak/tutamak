@@ -24,7 +24,7 @@ enum SwipeDirection: Equatable, CustomStringConvertible {
     }
 }
 
-/// How far the fingers sit from their centre, in trackpad-width units: the mean horizontal,
+/// How far the fingers sit from their center, in trackpad-width units: the mean horizontal,
 /// vertical and straight-line distance. `y` is scaled by the trackpad aspect so both axes are
 /// physical distances. Differences of two spreads say how far the fingers opened or closed.
 struct Spread: Equatable {
@@ -73,8 +73,8 @@ enum GestureEvent: Equatable {
     case moved(CGVector)
     /// The drag ended.
     case ended
-    /// A quick flick: sideways is the old "switch desktop" habit, up and down the old Mission
-    /// Control and App Exposé. Fires once per touch.
+    /// A quick flick: sideways stands in for the old macOS desktop swipe, up and down for the old
+    /// Mission Control and App Exposé swipes. Fires once per touch.
     case swiped(SwipeDirection)
     /// The fingers started spreading or pinching; carries their spread when they landed.
     case resizeBegan(Spread)
@@ -99,7 +99,8 @@ enum GestureEvent: Equatable {
 ///
 /// While dragging or resizing, the gesture ends when the finger count stays below `fingers` for
 /// `releaseDebounce` seconds, or when every finger lifts; losing a finger for one frame does not
-/// end it. Only a whole hand moves a drag: frames with fewer fingers (a hand lifting) move nothing. With too many fingers (a palm, a fifth finger) nothing happens until the count drops.
+/// end it. Only a whole hand moves a drag: frames with fewer fingers (a hand lifting) move
+/// nothing. With too many fingers (a palm, a fifth finger) nothing happens until the count drops.
 struct GestureTracker {
     var fingers = 4
     var startThreshold: CGFloat = 0.012
@@ -114,7 +115,7 @@ struct GestureTracker {
 
     /// Sideways flicks.
     var recognizesSwipes = true
-    /// Up and down flicks. Off by default: every fast vertical drag start then waits too.
+    /// Up and down flicks. Off by default: with them on, every drag that starts fast and vertical waits too.
     var recognizesVerticalSwipes = false
     /// A flick covers this much of the trackpad width (a vertical flick the same physical distance)...
     var swipeDistance: CGFloat = 0.08
@@ -128,10 +129,10 @@ struct GestureTracker {
     // Pinches.
 
     var recognizesPinch = true
-    /// How far the fingers must open or close (mean distance from their centre) to start resizing.
+    /// How far the fingers must open or close (mean distance from their center) to start resizing.
     var pinchThreshold: CGFloat = 0.007
-    /// A pinch opens or closes the hand by at least this much relative to how far its centre slides
-    /// (both measured physically). Opening the hand around a still thumb slides the centre too
+    /// A pinch opens or closes the hand by at least this much relative to how far its center slides
+    /// (both measured physically). Opening the hand around a still thumb slides the center too
     /// (ratio ≈0.39), while a slide barely changes the spread (logged drags stayed at or under 0.12).
     var pinchRatio: CGFloat = 0.25
     /// A start that could still be either a pinch or a slide is decided as a slide after this much travel.
@@ -234,7 +235,7 @@ struct GestureTracker {
                 return startResize(at: time)
             }
             guard moved >= startThreshold else { return [] }
-            // The fingers are opening or closing while their centre slides: wait until it is
+            // The fingers are opening or closing while their center slides: wait until it is
             // clearly one or the other. Ordinary slides are not pinch-like and go on at once.
             if pinchLike, moved < pinchAmbiguousTravel { return [] }
             let flicks = recognizesSwipes || recognizesVerticalSwipes
@@ -257,8 +258,8 @@ struct GestureTracker {
         case .dragging:
             var events: [GestureEvent] = []
             // Only a whole hand moves the window. With fewer fingers the hand is lifting (or one
-            // slipped for a frame), and the fingers left behind roll and shift as they leave: that
-            // moved a window held at a display edge off it, a few points, after the user had let go.
+            // slipped for a frame), and the fingers left behind roll and shift as they leave. That
+            // used to nudge a window held at a display edge a few points off it after the hand let go.
             if n >= fingers, let d = Geometry.averageDelta(from: previous, to: current), d.dx != 0 || d.dy != 0 {
                 events.append(.moved(d))
             }
