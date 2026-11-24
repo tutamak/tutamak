@@ -5,6 +5,9 @@ Move and resize Mac windows with four fingers on your trackpad.
 Put four fingers down and the window under the pointer is yours: slide to move it, pinch to
 resize it, tap to make it fill the screen. No title bar to aim for, no shortcut to remember.
 
+**[Download Tutamak](https://github.com/tutamak/tutamak/releases/latest/download/Tutamak.dmg)**
+for macOS 14 or later on an Apple silicon Mac · [What's new](CHANGELOG.md)
+
 ## What it does
 
 | With four fingers | What happens |
@@ -20,20 +23,14 @@ stick to the screen's edges for a moment, and a preview of every gesture.
 
 ## Getting started
 
-You need macOS 14 or later on an Apple silicon Mac, a trackpad, and Xcode's command line tools.
+Open the disk image, drag Tutamak into Applications and open it from there. A short setup walks
+you through the rest: letting Tutamak move windows (macOS asks for Accessibility access), turning
+off macOS's own four-finger swipes so the two don't fight, and trying each gesture.
 
-```sh
-git clone https://github.com/tutamak/tutamak.git
-cd tutamak
-make install
-```
+After that, Tutamak lives in the menu bar. Its menu has Settings (⌘,) and the setup, if you ever
+want to run it again. Tutamak checks for updates once a day and asks before installing one.
 
-That builds the app, puts it in `~/Applications` and opens it. A short setup walks you through
-the rest: letting Tutamak move windows (macOS asks for Accessibility access), turning off macOS's
-own four-finger swipes so the two don't fight, and trying each gesture.
-
-After that, Tutamak lives in the menu bar. Its menu has Settings (⌘,) and the setup, if you
-ever want to run it again.
+So far it has been built and tried on macOS 26 only.
 
 ## Good to know
 
@@ -50,23 +47,30 @@ ever want to run it again.
 window one. The name was picked by Claude, Anthropic's AI model, which wrote the app in Claude
 Code.
 
-## For developers
+## Building from source
+
+You need Xcode's command line tools.
 
 ```sh
+git clone https://github.com/tutamak/tutamak.git
+cd tutamak
+make install    # builds Tutamak Dev, puts it in ~/Applications and opens it
 make test       # the tests; no trackpad needed
-make debug      # runs the app and follows its log
+make debug      # runs it and follows its log
 make touches    # prints raw finger data from the trackpad
 ```
 
-How the gestures are told apart, the numbers behind them and a tour of the code are in
-[docs/details.md](docs/details.md).
+*Tutamak Dev* is a development copy with its own name and settings. It never updates itself and
+can sit beside the released Tutamak, but run only one at a time; each offers to quit the other.
+
+How the gestures are told apart, the numbers behind them, how releases are made and a tour of the
+code are in [docs/details.md](docs/details.md).
 
 ## Uninstall
 
-```sh
-make gestures-restore   # only if you let Tutamak turn off the macOS gestures
-make uninstall
-```
+If you let Tutamak turn off macOS's four-finger gestures, put them back first with
+**Settings > macOS > Restore**. Then quit Tutamak and move it to the Trash. (For Tutamak Dev,
+`make uninstall`.)
 
 ## License
 

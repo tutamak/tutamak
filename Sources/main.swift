@@ -29,6 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var iconRefresh: Timer?
     private var iconAlert: Bool?
     private let menuBarHint = MenuBarHint()
+    /// Nil in a development build, which has no update feed.
+    private var updater: Updater?
 
     init(options: LaunchOptions) {
         self.options = options
@@ -56,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             openSetup(demo: true)
             return
         }
+        if !options.check, AppMover.offerMoveIfNeeded() { return }
 
         let controller = self.controller
         Multitouch.shared.onFrame = { device, touches, time in
@@ -80,6 +83,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             scrollBlocker.start()
             runCheck()
             return
+        }
+        if let feed = Flavor.feed(info: Bundle.main.infoDictionary ?? [:], environment: ProcessInfo.processInfo.environment) {
+            let updater = Updater(feed: feed)
+            updater.onChange = { [weak self] in self?.refreshStatusIcon() }
+            self.updater = updater
         }
         // The setup asks for the permission itself, beside System Settings, so the system's own
         // prompt is not raised on top of it.
@@ -244,10 +252,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    /// The icon shows a dot while something needs attention, and is dimmed while paused.
+    /// The icon shows a dot while something needs attention or an update is waiting, and is dimmed
+    /// while paused.
     private func refreshStatusIcon() {
         guard let button = statusItem?.button else { return }
-        let alert = !statusProblems().isEmpty
+        let alert = !statusProblems().isEmpty || updater?.waiting != nil
         if alert != iconAlert {
             button.image = MenuBarIcon.image(alert: alert)
             iconAlert = alert
@@ -260,9 +269,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
+        if let version = updater?.waiting {
+            add(menu, "Update Available: Tutamak \(version)…", #selector(checkForUpdates))
+        }
         let problems = statusProblems()
         if problems.isEmpty {
-            info(menu, enabled ? "Ready · \(deviceCount) trackpad\(deviceCount == 1 ? "" : "s")" : "Paused")
+            let flavor = Flavor.isRelease ? "" : "Dev build · "
+            info(menu, flavor + (enabled ? "Ready · \(deviceCount) trackpad\(deviceCount == 1 ? "" : "s")" : "Paused"))
         } else {
             for (title, action) in problems {
                 if let action { add(menu, "⚠︎ " + title, action) } else { info(menu, "⚠︎ " + title) }
@@ -273,13 +286,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add(menu, "Enabled", #selector(toggleEnabled)).state = enabled ? .on : .off
         add(menu, "Settings…", #selector(openSettingsAction), key: ",")
         add(menu, "Setup Assistant…", #selector(openSetupAction))
+        if updater != nil, updater?.waiting == nil {
+            add(menu, "Check for Updates…", #selector(checkForUpdates))
+        }
         menu.addItem(.separator())
-        add(menu, "Quit Tutamak", #selector(quit), key: "q")
+        add(menu, "Quit \(Flavor.name)", #selector(quit), key: "q")
     }
 
     /// What stands in the way of the gestures working, each with the action that fixes it (if any).
     private func statusProblems() -> [(String, Selector?)] {
         var problems: [(String, Selector?)] = []
+        if let other = Flavor.othersRunning().first {
+            // Both copies would move the window under the same four fingers.
+            problems.append(("Quit \(other.localizedName ?? "the Other Tutamak") (Also Running)", #selector(quitOtherFlavor)))
+        }
         if !AXIsProcessTrusted() {
             problems.append(("Grant Accessibility Permission…", #selector(openAccessibility)))
         } else if !scrollBlocker.isRunning {
@@ -346,7 +366,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 restoreGestures: { SystemGestures.run("restore") },
                 openSetup: { [weak self] in self?.openSetup() },
                 openKeyboardShortcuts: { [weak self] in self?.openKeyboardShortcuts() },
-                rescan: { [weak self] in self?.rescan() }
+                rescan: { [weak self] in self?.rescan() },
+                updates: updater.map { updater in
+                    UpdateActions(check: { updater.check() },
+                                  checksAutomatically: { updater.checksAutomatically },
+                                  setChecksAutomatically: { updater.checksAutomatically = $0 })
+                }
             )))
             controller.onClose = { [weak self] in self?.settingsWindow = nil }
             settingsWindow = controller
@@ -354,25 +379,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         settingsWindow?.show()
     }
 
+    @objc private func checkForUpdates() {
+        updater?.check()
+    }
+
+    @objc private func quitOtherFlavor() {
+        for app in Flavor.othersRunning() { app.terminate() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.refreshStatusIcon() }
+    }
+
     @objc private func toggleEnabled() {
         defaults.set(!enabled, forKey: "enabled")
         applySettings()
     }
-
-
-
-
-
-
 
     @objc private func openKeyboardShortcuts() {
         if let url = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension") {
             NSWorkspace.shared.open(url)
         }
     }
-
-
-
 
     private func setLaunchAtLogin(_ on: Bool) {
         do {

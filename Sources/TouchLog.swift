@@ -5,7 +5,7 @@ import AppKit
 enum TouchLog {
     static func run() -> Never {
         setvbuf(stdout, nil, _IOLBF, 0)
-        let queue = DispatchQueue(label: "local.tutamak.touchlog")
+        let queue = DispatchQueue(label: "tutamak.touchlog")
         let mt = Multitouch.shared
         var indexOf: [UnsafeMutableRawPointer: Int] = [:]
         var lastTouching: [Int: Int] = [:]

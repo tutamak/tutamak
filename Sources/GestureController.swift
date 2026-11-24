@@ -2,7 +2,7 @@ import AppKit
 import ApplicationServices
 import os
 
-let logger = Logger(subsystem: "local.tutamak", category: "gestures")
+let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "local.tutamak", category: "gestures")
 
 /// Takes touch frames and turns the four-finger gestures into window actions:
 /// slide to move the window under the pointer, pinch to resize it, tap to maximize or restore it,
@@ -40,7 +40,7 @@ final class GestureController {
     /// Resizing stops here (or at the window's own size, if smaller); apps may enforce more.
     private let minimumSize = CGSize(width: 240, height: 160)
 
-    private let queue = DispatchQueue(label: "local.tutamak.gesture", qos: .userInteractive)
+    private let queue = DispatchQueue(label: "tutamak.gesture", qos: .userInteractive)
     private let animator = WindowAnimator(mover: WindowMover())
     private let overlay = SnapOverlay()
     private let gridBackdrop = GridBackdrop()

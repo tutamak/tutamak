@@ -148,7 +148,7 @@ final class WindowMover {
         case frame(AXUIElement, CGRect, anchor: CGPoint)
     }
 
-    private let queue = DispatchQueue(label: "local.tutamak.ax", qos: .userInteractive)
+    private let queue = DispatchQueue(label: "tutamak.ax", qos: .userInteractive)
     private let lock = NSLock()
     private var pending: Job?
     private var draining = false

@@ -19,6 +19,14 @@ struct SettingsActions {
     var openSetup: () -> Void
     var openKeyboardShortcuts: () -> Void
     var rescan: () -> Void
+    /// Nil in a development build, which does not update itself.
+    var updates: UpdateActions? = nil
+}
+
+struct UpdateActions {
+    var check: () -> Void
+    var checksAutomatically: () -> Bool
+    var setChecksAutomatically: (Bool) -> Void
 }
 
 /// The settings window's state: the defaults as they are, and the Mac's state read again while
@@ -78,6 +86,16 @@ final class SettingsModel {
         })
     }
 
+    var checksForUpdates: Binding<Bool> {
+        Binding(get: {
+            _ = self.version
+            return self.actions.updates?.checksAutomatically() ?? false
+        }, set: {
+            self.actions.updates?.setChecksAutomatically($0)
+            self.version += 1
+        })
+    }
+
     func turnOffGestures() { run(actions.turnOffGestures) }
     func restoreGestures() { run(actions.restoreGestures) }
 
@@ -132,7 +150,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private func makeWindow() -> NSWindow {
         let window = NSWindow(contentRect: NSRect(origin: .zero, size: Self.size),
                               styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-        window.title = "Tutamak Settings"
+        window.title = "\(Flavor.name) Settings"
         window.isReleasedWhenClosed = false
         window.delegate = self
         let host = NSHostingView(rootView: SettingsView(model: model))
@@ -233,8 +251,16 @@ private struct SettingsView: View {
                     }
                 }
                 LabeledContent("Version") {
-                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "–")
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 10) {
+                        Text(Flavor.isRelease ? Flavor.version : "\(Flavor.version), development build")
+                            .foregroundStyle(.secondary)
+                        if let updates = model.actions.updates {
+                            Button("Check for Updates…", action: updates.check)
+                        }
+                    }
+                }
+                if model.actions.updates != nil {
+                    Toggle("Check for updates automatically", isOn: model.checksForUpdates)
                 }
                 Button("Open Setup Assistant…", action: model.actions.openSetup)
             }

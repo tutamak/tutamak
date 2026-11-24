@@ -996,5 +996,33 @@ do {
           "on the display Settings is on")
 }
 
+// MARK: Flavor and app location
+
+do {
+    let release: [String: Any] = ["SUFeedURL": "https://github.com/tutamak/tutamak/releases/latest/download/appcast.xml"]
+    check(Flavor.feed(info: release, environment: [:]) == release["SUFeedURL"] as? String, "a release checks its own feed")
+    check(Flavor.feed(info: [:], environment: [:]) == nil, "a development build has no feed and so no updater")
+    check(Flavor.feed(info: ["SUFeedURL": ""], environment: [:]) == nil, "an empty feed is no feed")
+    check(Flavor.feed(info: release, environment: ["TUTAMAK_FEED": "http://127.0.0.1:8000/appcast.xml"])
+          == "http://127.0.0.1:8000/appcast.xml", "TUTAMAK_FEED points a copy at a local feed")
+    check(Flavor.feed(info: release, environment: ["TUTAMAK_FEED": ""]) == release["SUFeedURL"] as? String,
+          "an empty TUTAMAK_FEED changes nothing")
+
+    let home = "/Users/someone"
+    func place(_ path: String, readOnly: Bool = false) -> AppLocation.Place {
+        AppLocation.place(of: path, home: home, readOnlyVolume: readOnly)
+    }
+    check(place("/Applications/Tutamak.app") == .applications, "/Applications")
+    check(place("/Users/someone/Applications/Tutamak.app") == .applications, "~/Applications")
+    check(place("/Volumes/Tutamak/Tutamak.app", readOnly: true) == .diskImage, "the disk image")
+    check(place("/Users/someone/Downloads/Tutamak.app") == .downloads, "Downloads")
+    check(place("/Users/someone/Downloads/Tutamak 2/Tutamak.app") == .downloads, "a folder in Downloads")
+    check(place("/Users/someone/Desktop/Tutamak.app") == .downloads, "the desktop")
+    check(place("/Users/someone/Projects/tutamak/build/release/Tutamak.app") == .elsewhere, "a build folder is left alone")
+    check(place("/Volumes/Work/Tutamak.app") == .elsewhere, "a writable external drive is left alone")
+    check(place("/Applications/../Users/someone/Downloads/Tutamak.app") == .downloads, "the path is standardized first")
+    check(place("/ApplicationsOld/Tutamak.app") == .elsewhere, "only the folder itself counts")
+}
+
 print("\(checks - failures)/\(checks) checks passed")
 exit(failures == 0 ? 0 : 1)

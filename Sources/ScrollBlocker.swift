@@ -65,7 +65,7 @@ final class ScrollBlocker {
             CGEvent.tapEnable(tap: tap, enable: true)
             CFRunLoopRun()
         }
-        thread.name = "local.tutamak.scroll"
+        thread.name = "tutamak.scroll"
         thread.qualityOfService = .userInteractive
         thread.start()
         isRunning = true

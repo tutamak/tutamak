@@ -136,8 +136,24 @@ down opens App Exposé.
 
 ## Development
 
-The build signs the app with an Apple Development identity if one is installed, so the
-Accessibility permission survives rebuilds. Without one the app is ad-hoc signed, and the
+Tutamak is built in two flavors, told apart by name and identity, so a development copy and the
+released app can live on the same Mac:
+
+| | Development (`make`) | Release (`make release`) |
+| --- | --- | --- |
+| Name | Tutamak Dev | Tutamak |
+| Bundle identifier | `local.tutamak` | `dev.tutamak.tutamak` |
+| Built into | `build/dev/TutamakDev.app` | `build/release/Tutamak.app` |
+| Installed into | `~/Applications` (`make install`) | `/Applications`, from the disk image |
+| Signed with | Apple Development, if installed | Developer ID, hardened runtime, notarized |
+| Updates | none: it has no feed | Sparkle, from the latest GitHub release |
+
+Settings, the Accessibility permission and "Open at login" belong to an identity, so the two
+flavors keep their own. Both act on every four-finger gesture, so don't run them at once; each
+one's menu offers to quit the other.
+
+The development build signs the app with an Apple Development identity if one is installed, so
+the Accessibility permission survives rebuilds. Without one the app is ad-hoc signed, and the
 permission has to be granted again after every build.
 
 ```sh
@@ -145,15 +161,16 @@ make test       # geometry and gesture tests (no trackpad needed)
 make touches    # prints raw finger frames; warns ANOMALOUS VALUE if the struct layout is off
 make check      # starts without asking for permission, prints trackpad/permission/gesture status and quits
 make debug      # opens the app and follows its log (drag, zone, snap)
-make run        # opens it from build/
-build/Tutamak.app/Contents/MacOS/Tutamak --setup-demo
+make run        # opens it from build/dev/
+build/dev/TutamakDev.app/Contents/MacOS/TutamakDev --setup-demo
                 # runs only the setup assistant, with Accessibility reported as not allowed and
                 # every setting kept in memory, so the card beside System Settings can be tried on
                 # a Mac that is already set up. It reads no trackpad; to try the practice step, use
                 # Setup Assistant in the installed app
 ```
 
-The log can also be followed at any time with:
+The log can also be followed at any time with (for the released app, the subsystem is
+`dev.tutamak.tutamak`):
 
 ```sh
 log stream --level info --predicate 'subsystem == "local.tutamak"'
@@ -165,6 +182,34 @@ level, so the system keeps them and the most recent gestures can be read back af
 ```sh
 log show --last 10m --style compact --predicate 'subsystem == "local.tutamak"'
 ```
+
+### Releasing a version
+
+Releases are made on a Mac that has a "Developer ID Application" identity, a notarytool profile
+(`NOTARY_PROFILE`, made once with `xcrun notarytool store-credentials`) and Sparkle's signing key
+in the login keychain (made once with Sparkle's `generate_keys`; its public half is `SPARKLE_KEY`
+in the Makefile). Keep a backup of that key (`generate_keys -x <file>`): without it, installed
+copies can never be updated again.
+
+1. Write the changes under **Unreleased** in `CHANGELOG.md` as they are made.
+2. To release, rename that section to `## [x.y.z] - <date>`, open a new empty Unreleased above it,
+   put `x.y.z` in `VERSION`, and commit.
+3. `make release` checks the version, a clean tree, an unused tag, the tests and the changelog
+   section, then builds the release flavor, has Apple notarize it and staples the ticket. It writes
+   `build/release/v<x.y.z>/`: `Tutamak-<x.y.z>.zip` (for updates), `Tutamak.dmg` (for first
+   installs), `appcast.xml`, `notes.md` and the commit it was built from. Both archives are checked
+   the way they arrive: the zip unpacked, the disk image mounted, each app verified, assessed by
+   Gatekeeper and its ticket validated. Nothing is public yet; try the disk image first.
+4. `make publish` tags that commit `v<x.y.z>`, pushes the tag and creates the GitHub release with
+   the notes, the disk image, the zip and the appcast, marked latest.
+
+`make ship` runs the two in a row on main. Installed copies read
+`releases/latest/download/appcast.xml`, so publishing the release is publishing the update. A
+broken release is fixed by a newer one; Sparkle never goes back.
+
+To try an update before publishing, start an older release build with `TUTAMAK_FEED` pointing at a
+local copy of the appcast (`python3 -m http.server` serving it and the zip, with the enclosure URL
+changed to match).
 
 ### A tour of the code
 
@@ -187,6 +232,9 @@ log show --last 10m --style compact --predicate 'subsystem == "local.tutamak"'
   feeds them the real fingers while the setup assistant's practice is on.
 - `Sources/MenuBarHint.swift`: the bubble under the menu bar icon at the end of the setup.
 - `Sources/MenuBarIcon.swift`: the menu bar icon. `SettingsWindow.swift`: the settings window.
+- `Sources/Updater.swift`: updates, through Sparkle; the only file that imports it.
+  `Flavor.swift` tells the two flavors apart and picks the update feed, and `AppMover.swift` offers
+  to move a copy opened from the disk image or Downloads into Applications.
 - `tools/make-icon.swift`: draws the app icon; no image is checked in.
 - `Sources/SystemShortcut.swift`: reads the Mission Control keyboard shortcuts a flick stands for
   ("Move left a space", "Move right a space", "Mission Control", "Application windows") and posts
@@ -219,7 +267,7 @@ log show --last 10m --style compact --predicate 'subsystem == "local.tutamak"'
 - Flicks need their keyboard shortcuts turned on in System Settings > Keyboard > Keyboard
   Shortcuts > Mission Control ("Move left a space" and "Move right a space", and for up/down
   "Mission Control" and "Application windows"; all are on by default). The menu warns when one is
-  off. `Tutamak --flick left|right|up|down` posts a flick's shortcut on its own.
+  off. `TutamakDev --flick left|right|up|down` posts a flick's shortcut on its own.
 - The trackpad aspect ratio is assumed constant (0.66), so vertical speed may feel slightly
   different on built-in and external trackpads.
 - Trackpads are restarted automatically when one is added or removed (a Bluetooth trackpad that
