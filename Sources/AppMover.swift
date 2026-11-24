@@ -10,7 +10,7 @@ enum AppMover {
         guard Flavor.isRelease else { return false }
         let running = Bundle.main.bundleURL
         let original = originalURL(of: running) ?? running
-        let readOnly = (try? running.resourceValues(forKeys: [.volumeIsReadOnlyKey]))?.volumeIsReadOnly ?? false
+        let readOnly = (try? original.resourceValues(forKeys: [.volumeIsReadOnlyKey]))?.volumeIsReadOnly ?? false
         let place = AppLocation.place(of: original.path, home: NSHomeDirectory(), readOnlyVolume: readOnly)
         guard place == .diskImage || place == .downloads else { return false }
 

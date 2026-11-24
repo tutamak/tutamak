@@ -64,7 +64,7 @@ SWIFTFLAGS := -O -swift-version 5 -target arm64-apple-macos14.0 \
 STOP = pkill -x $(APP); while pgrep -x $(APP) >/dev/null; do sleep 0.1; done
 
 .PHONY: build run debug touches check test install uninstall clean gestures-status gestures-off \
-	gestures-restore release publish ship _release _publish
+	gestures-restore release publish ship _release _publish dmgbuild
 
 build: $(BIN)
 
@@ -190,6 +190,10 @@ gestures-restore:
 # release's, so the newest item is the only one any installed copy reads. Publishing a release is
 # publishing the update. A broken release is fixed by a newer one: Sparkle never goes back.
 NOTARY_PROFILE ?= evlat
+# The disk image is laid out by dmgbuild (tools/dmg-settings.py), pinned with its dependencies and
+# installed into a virtual environment under build/ on the first release; it never enters the repo.
+DMGBUILD_VERSION := 1.6.7
+DMGBUILD_DIR     := build/dmgbuild-$(DMGBUILD_VERSION)
 RELEASE_DIR    := build/release/v$(VERSION)
 ZIP            := $(RELEASE_DIR)/Tutamak-$(VERSION).zip
 DMG            := $(RELEASE_DIR)/Tutamak.dmg
@@ -198,6 +202,13 @@ RELEASE_URL    := https://github.com/$(REPO)/releases/download/v$(VERSION)/
 
 release:
 	$(MAKE) FLAVOR=release _release
+
+dmgbuild:
+	@test -x $(DMGBUILD_DIR)/bin/dmgbuild && exit 0; \
+	rm -rf $(DMGBUILD_DIR) && python3 -m venv $(DMGBUILD_DIR) && \
+	$(DMGBUILD_DIR)/bin/pip install -q --disable-pip-version-check \
+		dmgbuild==$(DMGBUILD_VERSION) ds_store==1.3.3 mac_alias==2.2.3 || \
+		{ echo "dmgbuild: could not be installed (python3 -m venv and pip, from PyPI)"; rm -rf $(DMGBUILD_DIR); exit 1; }
 
 publish:
 	$(MAKE) FLAVOR=release _publish
@@ -226,7 +237,7 @@ define verify_app
 	xcrun stapler validate -q $(1) || { echo "release: $(1) does not pass Gatekeeper"; spctl -a -vv -t exec $(1); exit 1; }
 endef
 
-_release:
+_release: dmgbuild
 	@echo '$(VERSION)' | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "release: version '$(VERSION)' is not x.y.z"; exit 1; }
 	@test -z "$$(git status --porcelain)" || { echo "release: the working tree is not clean; a release is built from a known commit"; exit 1; }
 	@! git rev-parse -q --verify 'refs/tags/v$(VERSION)' >/dev/null || { echo "release: v$(VERSION) is already tagged; raise VERSION"; exit 1; }
@@ -244,11 +255,7 @@ _release:
 	@$(call notarize,$(RELEASE_DIR)/notarize.zip,$(BUNDLE))
 	rm -f $(RELEASE_DIR)/notarize.zip
 	ditto -c -k --norsrc --noextattr --keepParent $(BUNDLE) $(ZIP)
-	rm -rf $(RELEASE_DIR)/dmg && mkdir -p $(RELEASE_DIR)/dmg
-	ditto $(BUNDLE) $(RELEASE_DIR)/dmg/Tutamak.app
-	ln -s /Applications $(RELEASE_DIR)/dmg/Applications
-	hdiutil create -quiet -volname Tutamak -srcfolder $(RELEASE_DIR)/dmg -ov -format UDZO $(DMG)
-	rm -rf $(RELEASE_DIR)/dmg
+	$(DMGBUILD_DIR)/bin/dmgbuild -s tools/dmg-settings.py -D app=$(BUNDLE) Tutamak $(DMG)
 	codesign --force --sign "$(SIGN_ID)" --timestamp $(DMG)
 	@echo "release: sending the disk image to Apple for notarization"
 	@$(call notarize,$(DMG),$(DMG))
