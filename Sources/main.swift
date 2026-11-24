@@ -80,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         setupStatusItem()
 
         if options.check {
-            scrollBlocker.start()
+            if AXIsProcessTrusted() { scrollBlocker.start() }
             runCheck()
             return
         }
@@ -97,12 +97,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         startScrollBlocker()
     }
 
-    /// The event tap cannot be created without Accessibility permission; retry until it is granted.
+    /// The event tap needs Accessibility permission; it is started once the permission is there.
+    /// Never tried before: creating it without the permission makes macOS raise its own prompt, on
+    /// top of the setup that is about to ask for the same thing beside System Settings.
     private func startScrollBlocker() {
-        if scrollBlocker.start() { return }
+        if AXIsProcessTrusted(), scrollBlocker.start() { return }
         blockerRetry = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] timer in
             guard let self else { return timer.invalidate() }
-            if self.scrollBlocker.start() {
+            if AXIsProcessTrusted(), self.scrollBlocker.start() {
                 timer.invalidate()
                 self.blockerRetry = nil
             }

@@ -582,6 +582,11 @@ final class GestureController {
 
     /// Posts the shortcut the flick stands for (see `SystemShortcut.init(flick:)`).
     private func flick(_ direction: SwipeDirection) {
+        // Posting a key event without the permission makes macOS raise its own prompt.
+        guard AXIsProcessTrusted() else {
+            log("flick \(direction): no Accessibility permission; nothing posted")
+            return
+        }
         let shortcut = SystemShortcut(flick: direction)
         if shortcut.post() {
             log("flick \(direction): \(shortcut.title)")

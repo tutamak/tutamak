@@ -56,14 +56,15 @@ enum AppMover {
         }
     }
 
-    /// Opens the moved app once this process has exited, then ejects the disk image it came from.
-    /// The paths go to the shell as arguments, never inside the script.
+    /// Opens the moved app once this process has exited, then ejects the disk image it came from:
+    /// forced if it is still busy, since macOS can hold a translocated copy's mount open after the
+    /// app has quit. The paths go to the shell as arguments, never inside the script.
     private static func relaunch(_ app: URL, eject volume: URL?) {
         let pid = ProcessInfo.processInfo.processIdentifier
         let script = """
         while kill -0 \(pid) 2>/dev/null; do sleep 0.1; done
         /usr/bin/open "$1"
-        if [ -n "$2" ]; then /usr/bin/hdiutil detach -quiet "$2"; fi
+        if [ -n "$2" ]; then /usr/bin/hdiutil detach -quiet "$2" || /usr/bin/hdiutil detach -quiet -force "$2"; fi
         """
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
