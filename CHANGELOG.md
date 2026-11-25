@@ -11,6 +11,8 @@ for the code.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-25
+
 ### Added
 
 - A snapped or maximized window gets its earlier size back as you slide it away, the way macOS's own tiling does. Hold ⌥ as you start to keep the size it has.
@@ -41,6 +43,7 @@ The first release.
 - Settings, with a preview of each gesture as you point at it.
 - Updates: Tutamak checks for new versions once a day and installs them when you agree.
 
-[Unreleased]: https://github.com/tutamak/tutamak/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/tutamak/tutamak/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/tutamak/tutamak/releases/tag/v0.3.0
 [0.2.0]: https://github.com/tutamak/tutamak/releases/tag/v0.2.0
 [0.1.0]: https://github.com/tutamak/tutamak/releases/tag/v0.1.0
