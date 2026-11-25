@@ -255,8 +255,8 @@ changed to match).
   feeds them the real fingers while the setup assistant's practice is on.
 - `Sources/TouchWindow.swift`: Show Touches, in Tutamak Dev's menu, for screen recordings: the
   practice's trackpad drawing in a corner of the screen (in one of four sizes, each drawn at its
-  own scale so it stays sharp), with the real fingers on it and the
-  gesture's name (and ⌥, while it is held) under it. It only watches; windows move as usual.
+  own scale so it stays sharp), with the real fingers on it, rings where a tap's fingers were,
+  and the gesture's name (and ⌥, while it is held) under it. It only watches; windows move as usual.
   Clicks pass through it, and it stays put while desktops switch and Mission Control opens.
 - `Sources/MenuBarHint.swift`: the bubble under the menu bar icon at the end of the setup.
 - `Sources/MenuBarIcon.swift`: the menu bar icon. `SettingsWindow.swift`: the settings window.

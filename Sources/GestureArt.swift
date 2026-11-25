@@ -72,6 +72,9 @@ struct SceneFrame: Equatable {
     var fingerScale: Double = 1
     /// A tap's ripple, 0...1, or nil.
     var ripple: Double?
+    /// Where the ripple's rings are, in the fingers' units, or nil for around each finger. A live
+    /// tap ripples where the fingers were, after they have lifted.
+    var ripplePoints: [CGPoint]?
     var window = Self.restingWindow
     /// Where the pointer sits, in window units (0...1), or nil to hide it.
     var pointer: CGPoint? = CGPoint(x: 0.34, y: 0.1)
@@ -265,8 +268,17 @@ private struct StageRenderer {
         ctx.stroke(shape, with: .color(hex(0xD6D8DD, 0x3B3E44)), lineWidth: 1)
 
         let accent = Color.accentColor
-        let points = frame.fingers.map { CGPoint(x: pad.minX + $0.x * pad.width, y: pad.minY + $0.y * pad.height) }
-        let starts = (frame.trailStarts ?? []).map { CGPoint(x: pad.minX + $0.x * pad.width, y: pad.minY + $0.y * pad.height) }
+        let onPad = { (p: CGPoint) in CGPoint(x: pad.minX + p.x * pad.width, y: pad.minY + p.y * pad.height) }
+        let points = frame.fingers.map(onPad)
+        let starts = (frame.trailStarts ?? []).map(onPad)
+
+        if let ripple = frame.ripple {
+            let r = 8 + 16 * ripple
+            for c in frame.ripplePoints?.map(onPad) ?? points {
+                ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
+                           with: .color(accent.opacity(0.6 * (1 - ripple))), lineWidth: 1.5)
+            }
+        }
 
         let presence = { (i: Int) -> Double in frame.fingerOpacities?[i] ?? frame.fingerOpacity }
         // Where the fingers slid from, while they are down.
@@ -281,11 +293,6 @@ private struct StageRenderer {
         for (i, c) in points.enumerated() {
             let opacity = presence(i)
             let scale = frame.fingerScales?[i] ?? frame.fingerScale
-            if let ripple = frame.ripple {
-                let r = 8 + 16 * ripple
-                ctx.stroke(Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2)),
-                           with: .color(accent.opacity(0.6 * (1 - ripple))), lineWidth: 1.5)
-            }
             guard opacity > 0.01 else { continue }
             let size = 14 * scale
             let dot = Path(ellipseIn: CGRect(x: c.x - size / 2, y: c.y - size / 2, width: size, height: size))

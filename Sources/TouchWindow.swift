@@ -17,19 +17,43 @@ final class TouchFeed {
         var ended: Double?
     }
 
+    /// Rings where a tap's fingers were, spreading out as they fade, as in the tap's preview in
+    /// Settings: the fingers have already lifted when a tap is known.
+    struct Ripple {
+        /// In trackpad units with y down.
+        var points: [CGPoint]
+        /// When the tap was made (system uptime).
+        var at: Double
+
+        /// How far it has spread at `now`, 0...1, or nil once it is gone.
+        func progress(at now: Double) -> Double? {
+            let t = (now - at) / TouchFeed.rippleDuration
+            return t >= 0 && t < 1 ? t : nil
+        }
+    }
+
     /// How long a caption stays after its gesture ends, then how long it takes to fade.
     static let captionHold = 0.8
     static let captionFade = 0.3
+    static let rippleDuration = 0.6
 
     let fingers = PracticeFeed()
     /// Called on the main queue when the first finger touches and when the last one lifts.
     var onTouching: (Bool) -> Void = { _ in }
 
-    private let lock = OSAllocatedUnfairLock<Caption?>(initialState: nil)
+    private struct Shown {
+        var caption: Caption?
+        var ripple: Ripple?
+    }
+
+    private let lock = OSAllocatedUnfairLock(initialState: Shown())
     // Used only on the gesture queue.
     private var touching = false
+    /// Where each finger of this touch last was, kept after it lifts: a tap's ripple goes there.
+    private var lastPoints: [Int32: CGPoint] = [:]
 
-    var caption: Caption? { lock.withLock { $0 } }
+    var caption: Caption? { lock.withLock { $0.caption } }
+    var ripple: Ripple? { lock.withLock { $0.ripple } }
 
     private var now: Double { ProcessInfo.processInfo.systemUptime }
 
@@ -37,6 +61,8 @@ final class TouchFeed {
     func touches(_ points: [Int32: CGPoint]) {
         fingers.touches(points)
         let down = !points.isEmpty
+        if down, !touching { lastPoints = [:] }
+        lastPoints.merge(points) { $1 }
         guard down != touching else { return }
         touching = down
         let onTouching = self.onTouching
@@ -46,22 +72,24 @@ final class TouchFeed {
     func handle(_ event: GestureEvent) {
         let option = CGEventSource.flagsState(.combinedSessionState).contains(.maskAlternate)
         let now = self.now
-        lock.withLock { caption in
+        let tapped = Array(lastPoints.values)
+        lock.withLock { shown in
             switch event {
             case .began:
-                caption = Caption(text: "Slide", option: option)
+                shown.caption = Caption(text: "Slide", option: option)
             case .moved:
-                caption?.option = option
+                shown.caption?.option = option
             case .resizeBegan:
-                caption = Caption(text: "Pinch", option: option)
+                shown.caption = Caption(text: "Pinch", option: option)
             case .resized(let spread):
-                if spread.radial != 0 { caption?.text = spread.radial < 0 ? "Pinch" : "Spread" }
-                caption?.option = option
+                if spread.radial != 0 { shown.caption?.text = spread.radial < 0 ? "Pinch" : "Spread" }
+                shown.caption?.option = option
             case .ended, .resizeEnded:
-                caption?.option = option
-                caption?.ended = now
+                shown.caption?.option = option
+                shown.caption?.ended = now
             case .tapped:
-                caption = Caption(text: "Tap", option: option, ended: now)
+                shown.caption = Caption(text: "Tap", option: option, ended: now)
+                shown.ripple = Ripple(points: tapped, at: now)
             case .swiped(let direction):
                 let arrow = switch direction {
                 case .left: "←"
@@ -69,7 +97,7 @@ final class TouchFeed {
                 case .up: "↑"
                 case .down: "↓"
                 }
-                caption = Caption(text: "Flick \(arrow)", option: option, ended: now)
+                shown.caption = Caption(text: "Flick \(arrow)", option: option, ended: now)
             }
         }
     }
@@ -79,15 +107,15 @@ final class TouchFeed {
     func cancel() {
         touches([:])
         let now = self.now
-        lock.withLock { caption in
-            if caption != nil, caption?.ended == nil { caption?.ended = now }
+        lock.withLock { shown in
+            if shown.caption != nil, shown.caption?.ended == nil { shown.caption?.ended = now }
         }
     }
 
-    /// Nothing left to draw: no finger down and the caption gone. (A lifted finger fades in a
-    /// quarter of a second, well within the caption's time.)
+    /// Nothing left to draw: no finger down, no ripple and the caption gone. (A lifted finger
+    /// fades in a quarter of a second, well within the caption's time.)
     func isSettled(at now: Double) -> Bool {
-        guard fingers.state.fingers.isEmpty else { return false }
+        guard fingers.state.fingers.isEmpty, ripple?.progress(at: now) == nil else { return false }
         guard let caption else { return true }
         guard let ended = caption.ended else { return false }
         return now - ended > Self.captionHold + Self.captionFade
@@ -139,12 +167,17 @@ final class TouchWindow {
             }
         }
 
-        /// The window at this size; at Medium the trackpad is 240 pt wide.
-        var window: CGSize { CGSize(width: 272 * scale, height: 238 * scale) }
+        /// The trackpad and the caption under it; at Medium the trackpad is 240 pt wide.
+        var content: CGSize { CGSize(width: 240 * scale, height: 207 * scale) }
+        /// Clear room around the content for the shadows to fade out in. Cut off at the window's
+        /// edge, a shadow shows as a faint box on a light background: the trackpad's needs about
+        /// two and a half blur radii, plus its offset, to fade to nothing.
+        var room: CGFloat { 36 * scale }
+        var window: CGSize { CGSize(width: content.width + 2 * room, height: content.height + 2 * room) }
+        /// From the screen's edge (beside the Dock and below the menu bar) to the trackpad. The
+        /// shadow's room may reach past it, over the Dock or the menu bar; clicks pass through.
+        var gap: CGFloat { 4 + 16 * scale }
     }
-    /// From the screen's edge (beside the Dock and below the menu bar) to the window, whose
-    /// drawing keeps 16 pt of room for its shadow.
-    private static let inset: CGFloat = 4
 
     let feed = TouchFeed()
     private(set) var corner: Corner?
@@ -179,10 +212,10 @@ final class TouchWindow {
         let mouse = NSEvent.mouseLocation
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) }) ?? NSScreen.main else { return }
         let v = screen.visibleFrame
-        let size = size.window
+        let content = size.content, room = size.room, gap = size.gap
         panel.setFrameOrigin(NSPoint(
-            x: corner.isLeft ? v.minX + Self.inset : v.maxX - size.width - Self.inset,
-            y: corner.isTop ? v.maxY - size.height - Self.inset : v.minY + Self.inset
+            x: (corner.isLeft ? v.minX + gap : v.maxX - gap - content.width) - room,
+            y: (corner.isTop ? v.maxY - gap - content.height : v.minY + gap) - room
         ))
         panel.orderFrontRegardless()
     }
@@ -231,7 +264,7 @@ final class TouchWindow {
         // Above the grid and the snap preview, which sit at the floating level and just above it.
         p.level = .statusBar
         p.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
-        let host = NSHostingView(rootView: TouchView(feed: feed, model: model, scale: size.scale))
+        let host = NSHostingView(rootView: TouchView(feed: feed, model: model, size: size))
         host.sizingOptions = []
         host.frame = NSRect(origin: .zero, size: size.window)
         p.contentView = host
@@ -248,25 +281,39 @@ private final class TouchModel {
 private struct TouchView: View {
     let feed: TouchFeed
     let model: TouchModel
-    /// 1 at Medium. Every length below is drawn at this scale rather than scaled as a picture,
+    /// Every length below is drawn at its scale (1 at Medium) rather than scaled as a picture,
     /// so it stays sharp at every size.
-    let scale: CGFloat
+    let size: TouchWindow.Size
     /// Eases the fingers between display frames, as in the setup's practice; kept across redraws.
     @State private var smoother = LiveSmoother()
 
     var body: some View {
-        let s = scale
+        let s = size.scale
         TimelineView(.animation(minimumInterval: nil, paused: !model.awake)) { _ in
             let now = ProcessInfo.processInfo.systemUptime
             VStack(spacing: 10 * s) {
-                TrackpadView(frame: smoother.frame(for: feed.fingers.state, now: now))
+                TrackpadView(frame: scene(at: now))
                     .frame(width: 240 * s, height: 169 * s)
                     .shadow(color: .black.opacity(0.25), radius: 12 * s, y: 4 * s)
                 CaptionView(caption: feed.caption, now: now, scale: s)
             }
-            .padding(16 * s)
-            .frame(width: 272 * s, height: 238 * s, alignment: .top)
+            .frame(width: size.content.width, height: size.content.height, alignment: .top)
+            .padding(size.room)
+            // One picture of the whole window, shadows included. Left as they are, the shadows are
+            // layer shadows around a trackpad-sized layer, and once the screen has been still for
+            // a few seconds macOS shows only the part inside that layer: a hard-edged box.
+            .drawingGroup()
         }
+    }
+
+    /// The fingers as the smoother eases them, and a tap's ripple where they were.
+    private func scene(at now: Double) -> SceneFrame {
+        var frame = smoother.frame(for: feed.fingers.state, now: now)
+        if let ripple = feed.ripple, let progress = ripple.progress(at: now) {
+            frame.ripple = progress
+            frame.ripplePoints = ripple.points
+        }
+        return frame
     }
 }
 
