@@ -43,6 +43,22 @@ down opens App Exposé.
   the front and follows your fingers; the pointer moves with it.
 - **Snap:** push the pointer against the outer edge of a display and release. The left or right
   edge gives that half of the screen, the top edge the whole screen.
+- **Pull out:** drag a window that Tutamak snapped or maximized (by an edge, the grid or a tap)
+  and it takes back the size it had before the first snap, over 0.2 s as it follows the fingers
+  (at once with **Animate snapping** off).
+  The pointer keeps its place in the window, and the window stays on the display it is pulled
+  from. Hold **⌥** as the drag starts to keep the snapped size. A window resized since it was
+  snapped (a pinch, its own green button) keeps its new size.
+- **Margins:** with **Tiled windows have margins** on in System Settings > Desktop & Dock, snapped
+  and maximized windows leave the same gap as macOS's own tiling: 8 pt from the screen's edges and
+  between neighbors, the grid's zones included. A pinch then fills the screen up to the margin.
+  The setting is read as each gesture starts. With it off, or never changed, windows go edge to
+  edge. (The 8 pt is the figure other window managers use; it was not measured here.)
+- **Haptics:** a light tick on the trackpad under the fingers when a dragged window catches
+  something: a screen edge's snap zone, a line of the snap grid (once per line: not again on the
+  way off it into a cell), or a display edge that holds it (edge resistance, below). None while
+  ⌥ is held. Ticks are at least 60 ms apart. It drives the trackpad's actuator through the
+  private `MultitouchSupport` framework, waveform 3, the lightest built-in one.
 - **Snap grid** (off by default; **Settings > Windows**): while you drag, a grid of zones is drawn
   over the display, just behind the window, and letting go drops the window into the zone under
   the pointer. On a line between two zones it takes both, so one grid gives several sizes:
@@ -82,7 +98,8 @@ down opens App Exposé.
   an app refuses a size (a minimum, a fixed size), the window stays anchored instead of sliding.
 - **Maximize / restore:** tap with four fingers (land together, lift quickly, without sliding).
   Tapping a window that Tutamak maximized, or snapped to the whole screen, restores its earlier
-  frame.
+  frame. A snapped half (or grid zone) maximized this way goes back to that half, and a drag out of
+  it still gives back the size from before the half.
 - **Switch desktops:** a quick sideways four-finger flick switches desktops instead of dragging,
   as the macOS swipe did: flicking left brings in the desktop on the right. It works by posting
   the "Move left a space" or "Move right a space" keyboard shortcut. A flick is told apart from a
@@ -222,6 +239,10 @@ changed to match).
   tested.
 - `Sources/GestureController.swift`: turns gestures into window actions: moves and snaps windows,
   resizes them on a pinch, maximizes or restores them on a tap, posts a shortcut on a flick.
+- `Sources/Placements.swift`: what Tutamak remembers about the windows it snapped or maximized:
+  where a tap puts them back and the size a drag gives back. Pure and tested.
+- `Sources/Haptics.swift`: the tick on the trackpad, through `MultitouchSupport`'s actuator calls
+  (signatures from Yoshimasa Niwa's HapticKey sample).
 - `Sources/Animator.swift`: paces moves and live resizes to the display refresh; animates snapping,
   maximizing and restoring.
 - `Sources/SetupFlow.swift`: the setup assistant's steps and what each asks for, given the Mac's
@@ -232,6 +253,11 @@ changed to match).
   tested).
 - `Sources/GestureArt.swift`: the gesture drawings (a trackpad beside a screen); `Practice.swift`
   feeds them the real fingers while the setup assistant's practice is on.
+- `Sources/TouchWindow.swift`: Show Touches, in Tutamak Dev's menu, for screen recordings: the
+  practice's trackpad drawing in a corner of the screen (in one of four sizes, each drawn at its
+  own scale so it stays sharp), with the real fingers on it and the
+  gesture's name (and ⌥, while it is held) under it. It only watches; windows move as usual.
+  Clicks pass through it, and it stays put while desktops switch and Mission Control opens.
 - `Sources/MenuBarHint.swift`: the bubble under the menu bar icon at the end of the setup.
 - `Sources/MenuBarIcon.swift`: the menu bar icon. `SettingsWindow.swift`: the settings window.
   `AboutWindow.swift`: the About window, and the links it shares with nothing else.
@@ -243,9 +269,10 @@ changed to match).
   ("Move left a space", "Move right a space", "Mission Control", "Application windows") and posts
   them.
 - `Sources/Windows.swift`: Accessibility (AX) calls. Only the latest position is applied, so move
-  requests do not pile up in slow apps.
-- `Sources/Geometry.swift`: display edges, zones, the snap grid, resize frames and coordinate
-  math. Pure and tested.
+  requests do not pile up in slow apps; a size that must land (the end of a pull-out) carries a
+  later move along instead of being replaced by it.
+- `Sources/Geometry.swift`: display edges, zones, the snap grid, margins, resize frames and
+  coordinate math. Pure and tested. `TiledMargins` in `Settings.swift` reads macOS's margin setting.
 - `Sources/Overlay.swift`: the snap preview and the grid drawn while dragging. The grid is ordered
   just behind the dragged window, whose window server ID comes from the private
   `_AXUIElementGetWindow` (as in Rectangle and yabai).

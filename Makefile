@@ -134,7 +134,7 @@ check: build
 test:
 	@mkdir -p build
 	swiftc -swift-version 5 Sources/Geometry.swift Sources/GestureTracker.swift Sources/ScrollMuter.swift \
-		Sources/EdgeResistance.swift Sources/Smoothing.swift Sources/DropHold.swift Sources/SystemShortcut.swift \
+		Sources/EdgeResistance.swift Sources/Smoothing.swift Sources/DropHold.swift Sources/SystemShortcut.swift Sources/Placements.swift \
 		Sources/SetupFlow.swift Sources/GuidePlacement.swift Sources/Flavor.swift Tests/main.swift -o build/tests
 	build/tests
 	@tools/release-notes.sh --self-test

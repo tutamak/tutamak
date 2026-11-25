@@ -23,7 +23,7 @@ struct ScreenInfo {
 /// end up on no Space at all: seen after switching from the laptop display to an external one, the
 /// window took its frame, was ordered in at full alpha and still never appeared. Re-setting its
 /// collection behavior did not help; a fresh window with the same settings showed at once.
-private final class DisplayChangeWatcher {
+final class DisplayChangeWatcher {
     private var observer: NSObjectProtocol?
 
     init(_ handler: @escaping () -> Void) {

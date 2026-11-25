@@ -11,6 +11,12 @@ for the code.
 
 ## [Unreleased]
 
+### Added
+
+- A snapped or maximized window gets its earlier size back as you slide it away, the way macOS's own tiling does. Hold ⌥ as you start to keep the size it has.
+- A light tick on the trackpad when a window you're dragging catches a screen edge or a line of the snap grid.
+- Snapped windows keep the gaps of macOS's tiling when "Tiled windows have margins" is on in Desktop & Dock settings.
+
 ## [0.2.0] - 2026-11-25
 
 ### Added

@@ -12,7 +12,7 @@ for macOS 26 or later on an Apple silicon Mac · [What's new](CHANGELOG.md)
 
 | With four fingers | What happens |
 | --- | --- |
-| Slide | Moves the window. Let go at a screen edge to snap it to half or the whole screen. |
+| Slide | Moves the window. Let go at a screen edge to snap it to half or the whole screen; slide it away again and it gets its earlier size back. |
 | Pinch or spread | Resizes it. Where the pointer sits in the window decides which edge moves. |
 | Tap | Fills the screen. Tap again to put it back. |
 | Quick flick sideways | Switches desktops. |
@@ -34,7 +34,11 @@ want to run it again. Tutamak checks for updates once a day and asks before inst
 
 - macOS keeps its own four-finger gestures on even after you move Mission Control to three
   fingers. The setup can turn them off for you and keeps a backup, which Settings can restore.
-- Hold ⌥ as you let go to leave a window exactly where it is, without snapping.
+- Hold ⌥ as you let go to leave a window exactly where it is, without snapping, or as you start
+  to slide a snapped window away to keep its size.
+- If "Tiled windows have margins" is on in Desktop & Dock settings, snapped windows keep the same
+  gaps as macOS's own tiling.
+- The trackpad ticks lightly when a window catches a screen edge or a line of the snap grid.
 - Full-screen apps and windows that can't be moved, like the Dock, are left alone.
 - Tutamak reads the trackpad through a private Apple framework. That keeps it out of the App
   Store, and a future macOS update could break it.
@@ -60,6 +64,8 @@ make touches    # prints raw finger data from the trackpad
 
 *Tutamak Dev* is a development copy with its own name and settings. It never updates itself and
 can sit beside the released Tutamak, but run only one at a time; each offers to quit the other.
+Its menu also has **Show Touches**: a trackpad in a corner of the screen, in one of four sizes,
+that shows where your fingers are and names each gesture, for screen recordings.
 
 How the gestures are told apart, the numbers behind them, how releases are made and a tour of the
 code are in [docs/details.md](docs/details.md).

@@ -44,6 +44,7 @@ final class GestureController {
     private let animator = WindowAnimator(mover: WindowMover())
     private let overlay = SnapOverlay()
     private let gridBackdrop = GridBackdrop()
+    private let haptics = Haptics()
     private let scrollBlocker: ScrollBlocker
     private let verbose: Bool
 
@@ -53,9 +54,12 @@ final class GestureController {
     private var drag: DragSession?
     private var resize: ResizeSession?
     private var watchdog: DispatchWorkItem?
-    /// Frames to restore with a tap, per window: the frame before maximizing, and the frame
-    /// the window actually took (a window may refuse the exact screen size).
-    private var restoreFrames: [AXUIElement: RestoreEntry] = [:]
+    /// The windows Tutamak snapped or maximized: where a tap puts them back, and the size a drag
+    /// gives them back.
+    private var placements = Placements<AXUIElement>()
+    /// The window last pulled out of a snap and the size it is growing back to, until when: if the
+    /// fingers lift and grab it again before it gets there, it carries on from where it is.
+    private var pulling: (element: AXUIElement, size: CGSize, until: Double)?
     private var pendingDrop: PendingDrop?
     private var dropHold = DropHold()
     private var dropTimer: DispatchWorkItem?
@@ -63,14 +67,21 @@ final class GestureController {
     private var lastGridRelease: Double?
     /// The setup's practice, while it is on: gestures go there and nothing else happens.
     private var practice: PracticeFeed?
+    /// The touch window's feed, while it is shown. Unlike the practice it only watches: every
+    /// frame and gesture goes on to act on windows as usual.
+    private var watcher: TouchFeed?
 
     private struct DragSession {
         let window: TargetWindow?
         let screens: [ScreenInfo]
         let grab: CGVector
+        /// The gap macOS leaves around tiled windows, if its setting is on (see `TiledMargins`).
+        let margin: CGFloat
         var cursor: CGPoint
         var drop: Drop?
         var target: CGRect?
+        /// How many grid lines the pointer is on (see `Geometry.gridLines`), to tick once per line.
+        var lines = 0
         /// The visible area the grid is drawn over, if any, and the window server's ID of the
         /// dragged window, which the grid is ordered below.
         var backdrop: CGRect?
@@ -87,7 +98,9 @@ final class GestureController {
 
     private struct ResizeSession {
         let window: TargetWindow
-        let visible: CGRect
+        /// The display's visible area, less the tiled-window margin if macOS leaves one: a spread
+        /// fills it, and an edge resting on it stays there.
+        let bounds: CGRect
         /// Which edges move, from where the pointer was when the resize began.
         let grip: ResizeGrip
         let anchor: CGPoint
@@ -118,11 +131,6 @@ final class GestureController {
         let releasedAt: Double
     }
 
-    private struct RestoreEntry {
-        let before: CGRect
-        var after: CGRect?
-    }
-
     init(verbose: Bool, scrollBlocker: ScrollBlocker) {
         self.verbose = verbose
         self.scrollBlocker = scrollBlocker
@@ -150,10 +158,19 @@ final class GestureController {
         }
     }
 
+    /// Starts (a feed) or stops (nil) showing the fingers in the touch window.
+    func watch(_ feed: TouchFeed?) {
+        queue.async {
+            self.watcher?.cancel()
+            self.watcher = feed
+        }
+    }
+
     /// Called when the trackpads restart: if a device that went silent stayed `activeDevice`,
     /// frames from the other trackpad would be ignored forever.
     func reset() {
         queue.async { self.cancel() }
+        haptics.reset()
     }
 
     /// Called from a trackpad thread.
@@ -177,11 +194,19 @@ final class GestureController {
         activeDevice = tracker.isActive ? device : nil
         scrollBlocker.engaged = tracker.isEngaged
         if let decision = tracker.lastDecision, decision != decisionBefore { logDecision(decision) }
-        if let practice {
-            practice.touches(Dictionary(points.map { ($0.id, CGPoint(x: $0.position.x, y: 1 - $0.position.y)) },
-                                        uniquingKeysWith: { a, _ in a }))
-            for event in events { practice.handle(event) }
-            return
+        if practice != nil || watcher != nil {
+            // Trackpad y grows upward, the drawings' downward.
+            let fingers = Dictionary(points.map { ($0.id, CGPoint(x: $0.position.x, y: 1 - $0.position.y)) },
+                                     uniquingKeysWith: { a, _ in a })
+            if let watcher {
+                watcher.touches(fingers)
+                for event in events { watcher.handle(event) }
+            }
+            if let practice {
+                practice.touches(fingers)
+                for event in events { practice.handle(event) }
+                return
+            }
         }
         if dropHold.isPending { updatePendingDrop(events, at: time) }
 
@@ -205,16 +230,30 @@ final class GestureController {
     private func beginDrag(at time: Double) {
         let cursor = CGEvent(source: nil)?.location ?? .zero
         let screens = DispatchQueue.main.sync { ScreenInfo.current() }
-        let window = grabWindow(at: cursor, needsSize: false)
+        var window = grabWindow(at: cursor, needsSize: false)
         if let window { log("drag began: \(window.appName) \(describe(window.frame))") }
         if let released = lastGridRelease, time - released < 1.5 {
             log("drag began \(Int(((time - released) * 1000).rounded())) ms after a release over the grid")
         }
         lastGridRelease = nil
 
+        // A window that Tutamak snapped or maximized takes its earlier size back as it is pulled
+        // away, unless ⌥ is held: then it keeps the size it has.
+        var snapped: CGRect?
+        if let grabbed = window, !Self.placingFreely(), AX.isSizeSettable(grabbed.element),
+           let size = placements.pullOut(grabbed.element, frame: grabbed.frame) ?? unfinishedPull(of: grabbed, at: time) {
+            let visible = screens.first { $0.frame.contains(cursor) }?.visible
+                ?? screen(containing: grabbed.frame, in: screens).visible
+            let frame = Geometry.pulledOut(grabbed.frame, to: size, pointer: cursor, within: visible)
+            window = TargetWindow(element: grabbed.element, pid: grabbed.pid, frame: frame, appName: grabbed.appName)
+            snapped = grabbed.frame
+            pulling = (grabbed.element, size, time + 0.5)
+            log("pulled out of its snap: back to \(Int(size.width))×\(Int(size.height)) at \(describe(frame))")
+        }
+
         let origin = window?.frame.origin ?? cursor
         let grab = CGVector(dx: cursor.x - origin.x, dy: cursor.y - origin.y)
-        var s = DragSession(window: window, screens: screens, grab: grab, cursor: cursor)
+        var s = DragSession(window: window, screens: screens, grab: grab, margin: TiledMargins.current(), cursor: cursor)
         s.windowID = window.flatMap { AX.windowID($0.element) }
         // Start the filter at zero so the first step (the travel that crossed the threshold) is smoothed too.
         _ = s.smoother.filter(.zero, at: time)
@@ -223,12 +262,14 @@ final class GestureController {
 
         if let window {
             let animator = self.animator
-            DispatchQueue.main.async { animator.follow(window, grab: grab) }
+            DispatchQueue.main.async { animator.follow(window, grab: grab, from: snapped) }
         }
     }
 
     private func moveDrag(_ delta: CGVector, at time: Double) {
         guard var s = drag, let window = s.window else { return }
+        // ⌥ places the window freely: no zones, and no ticks either.
+        let free = Self.placingFreely()
         let k = settings.pointsPerUnit
         s.recent.append((time, delta))
         s.recent.removeAll { $0.time < time - 0.2 }
@@ -250,6 +291,7 @@ final class GestureController {
             let asked = step
             step = s.resistance.apply(step, frame: frame, visibleFrames: s.screens.map(\.visible))
             if wasHolding != s.resistance.isHolding {
+                if s.resistance.isHolding, !free { haptics.tick(on: activeDevice) }
                 log(String(format: "%@ at (%.1f, %.1f), step (%+.2f, %+.2f) became (%+.2f, %+.2f)",
                            s.resistance.isHolding ? "held at an edge" : "let go of the edge",
                            frame.minX, frame.minY, asked.dx, asked.dy, step.dx, step.dy))
@@ -271,20 +313,33 @@ final class GestureController {
         //    Holding ⌥ places it freely.
         var drop: Drop?
         var target: CGRect?
+        var lines = 0
         var backdrop: (visible: CGRect, layout: GridLayout)?
-        if !Self.placingFreely() {
+        if !free {
             let screen = s.screens.first { $0.frame.contains(s.cursor) }
             let layout = screen.flatMap { settings.grid.layout(for: $0.visible) }
             if let screen, let layout { backdrop = (screen.visible, layout) }
             if let hit = Geometry.snapZone(at: s.cursor, displays: displays),
                let edgeScreen = s.screens.first(where: { $0.frame == hit.display }) {
                 drop = .edge(hit.zone)
-                target = Geometry.snapFrame(hit.zone, visible: edgeScreen.visible)
+                target = Geometry.snapFrame(hit.zone, visible: edgeScreen.visible, margin: s.margin)
             } else if let backdrop {
                 drop = .grid(backdrop.layout)
-                target = Geometry.gridZone(at: s.cursor, in: backdrop.visible, layout: backdrop.layout)
+                target = Geometry.gridZone(at: s.cursor, in: backdrop.visible, layout: backdrop.layout, margin: s.margin)
+                lines = Geometry.gridLines(at: s.cursor, in: backdrop.visible, layout: backdrop.layout)
             }
         }
+        // A tick as the window catches a screen edge's zone or one of the grid's lines; none on the
+        // way from a line back into a cell, and none for the zone under the very first step.
+        if target != s.target, s.moves > 1 {
+            let caught = switch drop {
+            case .edge: true
+            case .grid: lines > s.lines
+            case nil: false
+            }
+            if caught { haptics.tick(on: activeDevice) }
+        }
+        s.lines = lines
         s.drop = drop
         if target != s.target {
             s.target = target
@@ -297,13 +352,21 @@ final class GestureController {
         if backdrop?.visible != s.backdrop {
             s.backdrop = backdrop?.visible
             let grid = gridBackdrop
-            let cells = backdrop.map { Geometry.gridCells($0.layout, in: $0.visible) }
+            let cells = backdrop.map { Geometry.gridCells($0.layout, in: $0.visible, margin: s.margin) }
             let below = s.windowID
             DispatchQueue.main.async {
                 if let backdrop, let cells { grid.show(cells, in: backdrop.visible, below: below) } else { grid.hide() }
             }
         }
         drag = s
+    }
+
+    /// The size a window grabbed again while still growing back from a pull-out goes on to.
+    private func unfinishedPull(of window: TargetWindow, at time: Double) -> CGSize? {
+        guard let p = pulling, p.element == window.element, time < p.until,
+              abs(p.size.width - window.frame.width) > 1 || abs(p.size.height - window.frame.height) > 1
+        else { return nil }
+        return p.size
     }
 
     /// Whether ⌥ is held: the window is placed exactly where it is released.
@@ -348,7 +411,9 @@ final class GestureController {
             )
             pendingDrop = PendingDrop(
                 window: window, from: released, target: target, layout: layout,
-                fills: s.screens.contains { Geometry.isClose($0.visible, target, tolerance: 1) },
+                fills: s.screens.contains {
+                    Geometry.isClose(Geometry.snapFrame(.maximize, visible: $0.visible, margin: s.margin), target, tolerance: 1)
+                },
                 releasedAt: time
             )
             lastGridRelease = time
@@ -363,11 +428,7 @@ final class GestureController {
         DispatchQueue.main.async { grid.hide() }
 
         // Snapping to the whole screen counts as maximizing: a tap afterward restores the frame from before the drag.
-        var completion: ((CGRect) -> Void)?
-        if zone == .maximize {
-            remember(before: window.frame, for: window.element)
-            completion = rememberActualFrame(of: window.element)
-        }
+        let completion = placing(window, fills: zone == .maximize)
         DispatchQueue.main.async {
             animator.snap(to: target, completion: completion)
             overlay.hide()
@@ -437,11 +498,7 @@ final class GestureController {
         pendingDrop = nil
         dropTimer?.cancel()
         dropTimer = nil
-        var completion: ((CGRect) -> Void)?
-        if p.fills {
-            remember(before: p.window.frame, for: p.window.element)
-            completion = rememberActualFrame(of: p.window.element)
-        }
+        let completion = placing(p.window, fills: p.fills)
         let overlay = self.overlay
         let animator = self.animator
         let grid = gridBackdrop
@@ -478,14 +535,15 @@ final class GestureController {
         }
         let screens = DispatchQueue.main.sync { ScreenInfo.current() }
         let visible = screen(containing: window.frame, in: screens).visible
+        let bounds = Geometry.snapFrame(.maximize, visible: visible, margin: TiledMargins.current())
         let spot = CGPoint(
             x: min(max((cursor.x - window.frame.minX) / window.frame.width, 0), 1),
             y: min(max((cursor.y - window.frame.minY) / window.frame.height, 0), 1)
         )
         let grip = ResizeGrip(spot: spot, size: window.frame.size)
-        let anchor = Geometry.resizeAnchor(window.frame, in: visible, grip: grip)
+        let anchor = Geometry.resizeAnchor(window.frame, in: bounds, grip: grip)
         var s = ResizeSession(
-            window: window, visible: visible, grip: grip, anchor: anchor,
+            window: window, bounds: bounds, grip: grip, anchor: anchor,
             handSpread: handSpread.radial, target: window.frame
         )
         _ = s.smoother.filter(.zero, at: time)
@@ -493,7 +551,7 @@ final class GestureController {
         // Everything needed to tell afterward why a resize changed the wrong side, or nothing.
         let axes = Geometry.resizedAxes(grip)
         let changes = [axes.width ? "width" : nil, axes.height ? "height" : nil].compactMap { $0 }.joined(separator: " and ")
-        let spans = Geometry.spans(window.frame, visible)
+        let spans = Geometry.spans(window.frame, bounds)
         let full = [spans.width ? "full width" : nil, spans.height ? "full height" : nil].compactMap { $0 }
         log(String(
             format: "resize began: %@ %@, pointer at (%.2f, %.2f) of it: %@, changes %@%@, anchor (%g, %g), hand spread %.3f",
@@ -511,7 +569,7 @@ final class GestureController {
         let scale = Geometry.resizeScale(
             grip: s.grip, start: s.handSpread, change: radial, exponent: resizeExponent
         )
-        s.target = Geometry.resizedFrame(s.window.frame, scale: scale, anchor: s.anchor, within: s.visible, minimum: minimumSize)
+        s.target = Geometry.resizedFrame(s.window.frame, scale: scale, anchor: s.anchor, within: s.bounds, minimum: minimumSize)
         s.spread = spread
         s.updates += 1
         resize = s
@@ -532,31 +590,32 @@ final class GestureController {
 
     // MARK: Tap
 
-    /// Maximizes the window under the pointer, or restores it if Tutamak maximized it.
+    /// Maximizes the window under the pointer, or restores it if Tutamak made it fill the screen.
     private func toggleMaximize() {
         let cursor = CGEvent(source: nil)?.location ?? .zero
         guard let window = grabWindow(at: cursor, needsSize: true) else { return }
         let screens = DispatchQueue.main.sync { ScreenInfo.current() }
         let visible = screen(containing: window.frame, in: screens).visible
+        let full = Geometry.snapFrame(.maximize, visible: visible, margin: TiledMargins.current())
         let key = window.element
 
         let target: CGRect
         let label: String
         var completion: ((CGRect) -> Void)?
-        if let entry = restoreFrames[key], let after = entry.after, Geometry.isClose(window.frame, after) {
-            target = entry.before
+        if let back = placements.tapBack(key, frame: window.frame) {
+            target = back.frame
             label = "restored"
-            restoreFrames[key] = nil
-        } else if Geometry.isClose(window.frame, visible) {
+            // Back to a snapped frame (it was maximized from one): a drag can still give back the size from before.
+            completion = back.token.map { recordPlacement(of: key, token: $0) }
+        } else if Geometry.isClose(window.frame, visible) || Geometry.isClose(window.frame, full) {
             // It fills the screen, but not through Tutamak: nothing to restore, so bring it to a comfortable size.
             target = visible.insetBy(dx: (visible.width / 6).rounded(), dy: (visible.height / 6).rounded())
             label = "restored"
-            restoreFrames[key] = nil
+            placements.forget(key)
         } else {
-            target = visible
+            target = full
             label = "maximized"
-            remember(before: window.frame, for: key)
-            completion = rememberActualFrame(of: key)
+            completion = placing(window, fills: true)
         }
         log("\(label): \(window.appName) \(describe(target))")
 
@@ -566,15 +625,18 @@ final class GestureController {
         }
     }
 
-    private func remember(before frame: CGRect, for key: AXUIElement) {
-        if restoreFrames.count > 64 { restoreFrames.removeAll() }
-        restoreFrames[key] = RestoreEntry(before: frame, after: nil)
+    /// Notes that Tutamak is snapping or maximizing `window` (from where it was when grabbed) and
+    /// returns the completion that records the frame the window actually takes.
+    private func placing(_ window: TargetWindow, fills: Bool) -> (CGRect) -> Void {
+        let token = placements.placing(window.element, from: window.frame, fills: fills)
+        return recordPlacement(of: window.element, token: token)
     }
 
-    /// Records the frame a maximized window actually took, reported from the AX queue.
-    private func rememberActualFrame(of key: AXUIElement) -> (CGRect) -> Void {
+    /// Records the frame a placed window actually took, reported from the AX queue (a window may
+    /// refuse the exact size).
+    private func recordPlacement(of key: AXUIElement, token: Int) -> (CGRect) -> Void {
         { [weak self] actual in
-            self?.queue.async { self?.restoreFrames[key]?.after = actual }
+            self?.queue.async { self?.placements.placed(key, token: token, at: actual) }
         }
     }
 
@@ -630,6 +692,9 @@ final class GestureController {
         endResize()
         dropHold.reset()
         cancelDrop()
+        // Frames may not come again (Tutamak turned off, a trackpad gone silent), so nothing may
+        // wait on them in the touch window either.
+        watcher?.cancel()
     }
 
     /// A zero-finger frame arrives when the fingers lift; if it does not, a drag or resize must not hang.

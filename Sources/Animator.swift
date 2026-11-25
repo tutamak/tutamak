@@ -26,6 +26,9 @@ final class WindowAnimator: NSObject {
     private var target = CGPoint.zero
     private var shown = CGPoint.zero
     private var band = DeadBand()
+    /// A window pulled out of a snap takes its earlier size back while it follows the fingers:
+    /// the frame it grows or shrinks from, and when that began.
+    private var reshape: (from: CGRect, start: CFTimeInterval?)?
 
     // Resizing
     private var targetFrame = CGRect.zero
@@ -50,14 +53,21 @@ final class WindowAnimator: NSObject {
 
     // MARK: Moving
 
-    /// Starts following a newly grabbed window. Cancels anything still in flight.
-    func follow(_ window: TargetWindow, grab: CGVector) {
+    /// Starts following a newly grabbed window. Cancels anything still in flight. If the window is
+    /// still at `from` (a snapped frame), it changes from there to its own frame on the way.
+    func follow(_ window: TargetWindow, grab: CGVector, from: CGRect? = nil) {
+        // Another window grabbed while one is still growing back from a pull-out: that one gets its
+        // size at once. (The same window grabbed again carries on growing; the controller sees to it.)
+        if reshape != nil, case .move(let previous, _, _) = mode, previous.element != window.element {
+            mover.setFrame(previous, CGRect(origin: rounded(shown), size: previous.frame.size))
+        }
         start(fresh: true)
         mode = .move(window, grab: grab, releasing: false)
         target = window.frame.origin
         shown = window.frame.origin
         band.reset()
         _ = band.update(shown)
+        reshape = from.map { ($0, nil) }
     }
 
     /// Where the window's origin should be (CG/AX coordinates).
@@ -78,6 +88,7 @@ final class WindowAnimator: NSObject {
     /// the pointer stays at `cursorSpot`, a fraction of the window's size from its origin.
     func resize(_ window: TargetWindow, anchor: CGPoint, cursorSpot: CGPoint) {
         start(fresh: true)
+        reshape = nil
         mode = .resize(window, anchor: anchor, cursorSpot: cursorSpot, releasing: false)
         targetFrame = window.frame
         shownFrame = window.frame
@@ -111,6 +122,7 @@ final class WindowAnimator: NSObject {
         _ window: TargetWindow, from: CGRect, to: CGRect, label: String, completion: ((CGRect) -> Void)?, fresh: Bool
     ) {
         if fresh { start(fresh: true) }
+        reshape = nil
         guard animatesSnapping else {
             mover.setFrame(window, to, completion: completion)
             finish(outcome: label)
@@ -161,6 +173,10 @@ final class WindowAnimator: NSObject {
         case .move(let window, let grab, let releasing):
             shown.x += (target.x - shown.x) * k
             shown.y += (target.y - shown.y) * k
+            if let reshape {
+                changeSize(window, grab: grab, from: reshape.from, start: reshape.start ?? now, now: now)
+                return
+            }
             let settled = hypot(target.x - shown.x, target.y - shown.y) < 0.5
             if releasing, settled {
                 shown = target
@@ -199,6 +215,27 @@ final class WindowAnimator: NSObject {
             mover.resize(window.element, to: rounded(interpolate(from, to, e)))
             updates += 1
         }
+    }
+
+    /// One step of a window pulled out of a snap: from its snapped frame to its own size at the
+    /// fingers, the pointer keeping its place in it. The last step is one that a following move
+    /// cannot replace (`settle`), so the window never stops short of its size.
+    private func changeSize(_ window: TargetWindow, grab: CGVector, from: CGRect, start: CFTimeInterval, now: CFTimeInterval) {
+        reshape = (from, start)
+        let progress = animatesSnapping ? min(1, (now - start) / animationDuration) : 1
+        let to = CGRect(origin: rounded(shown), size: window.frame.size)
+        if progress >= 1 {
+            reshape = nil
+            mover.settle(window.element, to: to)
+            band.reset()
+            _ = band.update(to.origin)
+        } else {
+            let e = 1 - pow(1 - progress, 3) // ease out
+            let anchor = CGPoint(x: grab.dx / max(to.width, 1), y: grab.dy / max(to.height, 1))
+            mover.resize(window.element, to: rounded(interpolate(from, to, e)), anchor: anchor)
+        }
+        updates += 1
+        postCursor(CGPoint(x: shown.x + grab.dx, y: shown.y + grab.dy))
     }
 
     private func place(_ window: TargetWindow, at origin: CGPoint, cursor: CGPoint) {

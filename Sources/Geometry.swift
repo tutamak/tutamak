@@ -163,23 +163,26 @@ enum Geometry {
         return nil
     }
 
-    /// The zone's frame within the display's visible area (without the menu bar and the Dock).
-    static func snapFrame(_ zone: SnapZone, visible v: CGRect) -> CGRect {
+    /// The zone's frame within the display's visible area (without the menu bar and the Dock),
+    /// with `margin` around it (see `tiled`).
+    static func snapFrame(_ zone: SnapZone, visible v: CGRect, margin: CGFloat = 0) -> CGRect {
         let half = (v.width / 2).rounded(.down)
-        switch zone {
-        case .left: return CGRect(x: v.minX, y: v.minY, width: half, height: v.height)
-        case .right: return CGRect(x: v.minX + half, y: v.minY, width: v.width - half, height: v.height)
-        case .maximize: return v
+        let frame = switch zone {
+        case .left: CGRect(x: v.minX, y: v.minY, width: half, height: v.height)
+        case .right: CGRect(x: v.minX + half, y: v.minY, width: v.width - half, height: v.height)
+        case .maximize: v
         }
+        return tiled(frame, in: v, margin: margin)
     }
 
-    /// The cells of `layout` within `visible`, row by row from the top left. Neighboring cells
-    /// share their edges exactly.
-    static func gridCells(_ layout: GridLayout, in visible: CGRect) -> [CGRect] {
+    /// The cells of `layout` within `visible`, row by row from the top left. Without a margin,
+    /// neighboring cells share their edges exactly.
+    static func gridCells(_ layout: GridLayout, in visible: CGRect, margin: CGFloat = 0) -> [CGRect] {
         var cells: [CGRect] = []
         for row in 0..<layout.rows {
             for column in 0..<layout.columns {
-                cells.append(gridFrame(layout, in: visible, columns: column...column, rows: row...row))
+                let cell = gridFrame(layout, in: visible, columns: column...column, rows: row...row)
+                cells.append(tiled(cell, in: visible, margin: margin))
             }
         }
         return cells
@@ -189,7 +192,26 @@ enum Geometry {
     /// (a fraction of a cell) of a line between two cells, both of them. So a 2×2 grid gives
     /// quarters, halves on its middle lines and the whole area where they cross; a 3×2 grid gives
     /// sixths, two-thirds on its column lines and full-height thirds on its middle line.
-    static func gridZone(at p: CGPoint, in visible: CGRect, layout: GridLayout, seam: CGFloat = 0.1) -> CGRect {
+    static func gridZone(
+        at p: CGPoint, in visible: CGRect, layout: GridLayout, seam: CGFloat = 0.1, margin: CGFloat = 0
+    ) -> CGRect {
+        let span = gridSpan(at: p, in: visible, layout: layout, seam: seam)
+        let zone = gridFrame(layout, in: visible, columns: span.columns, rows: span.rows)
+        return tiled(zone, in: visible, margin: margin)
+    }
+
+    /// How many of the grid's lines the pointer at `p` is on: 0 inside a cell, 1 on a line between
+    /// two cells, 2 where two lines cross. A dragged window catches a line when this goes up, and
+    /// that is where it ticks, once per line, rather than on the way into the line and out of it.
+    static func gridLines(at p: CGPoint, in visible: CGRect, layout: GridLayout, seam: CGFloat = 0.1) -> Int {
+        let span = gridSpan(at: p, in: visible, layout: layout, seam: seam)
+        return (span.columns.count - 1) + (span.rows.count - 1)
+    }
+
+    /// The columns and rows of the zone under `p` (see `gridZone`).
+    private static func gridSpan(at p: CGPoint, in visible: CGRect, layout: GridLayout, seam: CGFloat)
+        -> (columns: ClosedRange<Int>, rows: ClosedRange<Int>)
+    {
         func span(_ position: CGFloat, _ lo: CGFloat, _ length: CGFloat, _ count: Int) -> ClosedRange<Int> {
             let u = min(max((position - lo) / length, 0), 0.999_999) * CGFloat(count)
             let i = Int(u)
@@ -198,11 +220,45 @@ enum Geometry {
             if f > 1 - seam, i < count - 1 { return i...(i + 1) }
             return i...i
         }
-        return gridFrame(
-            layout, in: visible,
-            columns: span(p.x, visible.minX, visible.width, layout.columns),
-            rows: span(p.y, visible.minY, visible.height, layout.rows)
+        return (
+            span(p.x, visible.minX, visible.width, layout.columns),
+            span(p.y, visible.minY, visible.height, layout.rows)
         )
+    }
+
+    /// A zone (flush with its neighbors and with the edges of `visible`) with macOS's tiled-window
+    /// margin: `margin` in from each edge of `visible`, and half of it on each side of a line shared
+    /// with a neighbor, so neighbors end up `margin` apart too.
+    static func tiled(_ zone: CGRect, in visible: CGRect, margin: CGFloat) -> CGRect {
+        guard margin > 0 else { return zone }
+        let inner = (margin / 2).rounded(.down)
+        func low(_ edge: CGFloat, _ bound: CGFloat) -> CGFloat {
+            abs(edge - bound) < 1 ? edge + margin : edge + (margin - inner)
+        }
+        func high(_ edge: CGFloat, _ bound: CGFloat) -> CGFloat {
+            abs(edge - bound) < 1 ? edge - margin : edge - inner
+        }
+        let x0 = low(zone.minX, visible.minX)
+        let x1 = high(zone.maxX, visible.maxX)
+        let y0 = low(zone.minY, visible.minY)
+        let y1 = high(zone.maxY, visible.maxY)
+        return CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
+    }
+
+    /// Where a snapped window goes when a drag pulls it out and gives it back `size`: the pointer
+    /// keeps its place in the window, proportionally, and the window stays within `visible` (the
+    /// pointer's display), so a half that grows back does not hang off the side it hugged.
+    static func pulledOut(_ frame: CGRect, to size: CGSize, pointer: CGPoint, within visible: CGRect) -> CGRect {
+        func axis(_ pointer: CGFloat, _ lo: CGFloat, _ length: CGFloat, _ newLength: CGFloat,
+                  _ boundsLo: CGFloat, _ boundsHi: CGFloat) -> CGFloat {
+            let spot = length > 0 ? min(max((pointer - lo) / length, 0), 1) : 0.5
+            let start = pointer - spot * newLength
+            guard newLength <= boundsHi - boundsLo else { return boundsLo }
+            return min(max(start, boundsLo), boundsHi - newLength)
+        }
+        let x = axis(pointer.x, frame.minX, frame.width, size.width, visible.minX, visible.maxX)
+        let y = axis(pointer.y, frame.minY, frame.height, size.height, visible.minY, visible.maxY)
+        return CGRect(x: x.rounded(), y: y.rounded(), width: size.width, height: size.height)
     }
 
     private static func gridFrame(

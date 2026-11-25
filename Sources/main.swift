@@ -32,6 +32,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let menuBarHint = MenuBarHint()
     /// Nil in a development build, which has no update feed.
     private var updater: Updater?
+    /// The fingers in a corner of the screen, for recordings; development builds only.
+    private var touchWindow: TouchWindow?
 
     init(options: LaunchOptions) {
         self.options = options
@@ -89,6 +91,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let updater = Updater(feed: feed)
             updater.onChange = { [weak self] in self?.refreshStatusIcon() }
             self.updater = updater
+        }
+        if !Flavor.isRelease, let corner = defaults.string(forKey: "touchWindow").flatMap(TouchWindow.Corner.init) {
+            showTouches(in: corner)
         }
         // The setup asks for the permission itself, beside System Settings, so the system's own
         // prompt is not raised on top of it.
@@ -290,6 +295,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add(menu, "Enabled", #selector(toggleEnabled)).state = enabled ? .on : .off
         add(menu, "Settings…", #selector(openSettingsAction), key: ",")
         add(menu, "Setup Assistant…", #selector(openSetupAction))
+        if !Flavor.isRelease {
+            menu.addItem(touchesItem())
+        }
         menu.addItem(.separator())
         add(menu, "About \(Flavor.name)", #selector(openAboutAction))
         if updater != nil, updater?.waiting == nil {
@@ -326,6 +334,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return problems
     }
 
+
+    /// Show Touches: the corner to show them in, their size, and Hide while they show.
+    private func touchesItem() -> NSMenuItem {
+        let item = NSMenuItem(title: "Show Touches", action: nil, keyEquivalent: "")
+        let choices = NSMenu()
+        choices.addItem(.sectionHeader(title: "Corner"))
+        for corner in TouchWindow.Corner.allCases {
+            let choice = add(choices, corner.title, #selector(showTouchesAction(_:)))
+            choice.representedObject = corner.rawValue
+            choice.state = touchWindow?.corner == corner ? .on : .off
+        }
+        choices.addItem(.sectionHeader(title: "Size"))
+        for size in TouchWindow.Size.allCases {
+            let choice = add(choices, size.title, #selector(sizeTouchesAction(_:)))
+            choice.representedObject = size.rawValue
+            choice.state = touchSize == size ? .on : .off
+        }
+        if touchWindow != nil {
+            choices.addItem(.separator())
+            add(choices, "Hide", #selector(hideTouches))
+        }
+        item.submenu = choices
+        return item
+    }
 
     private func info(_ menu: NSMenu, _ title: String) {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
@@ -393,6 +425,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             aboutWindow = controller
         }
         aboutWindow?.show()
+    }
+
+    @objc private func showTouchesAction(_ sender: NSMenuItem) {
+        guard let corner = (sender.representedObject as? String).flatMap(TouchWindow.Corner.init) else { return }
+        showTouches(in: corner)
+    }
+
+    /// Picking a size shows them too, in the corner they had (bottom right the first time).
+    @objc private func sizeTouchesAction(_ sender: NSMenuItem) {
+        guard let size = (sender.representedObject as? String).flatMap(TouchWindow.Size.init) else { return }
+        defaults.set(size.rawValue, forKey: "touchWindowSize")
+        let corner = touchWindow?.corner
+            ?? defaults.string(forKey: "touchWindow").flatMap(TouchWindow.Corner.init) ?? .bottomRight
+        showTouches(in: corner)
+    }
+
+    private var touchSize: TouchWindow.Size {
+        defaults.string(forKey: "touchWindowSize").flatMap(TouchWindow.Size.init) ?? .medium
+    }
+
+    @objc private func hideTouches() {
+        defaults.removeObject(forKey: "touchWindow")
+        touchWindow?.close()
+        touchWindow = nil
+        controller.watch(nil)
+    }
+
+    /// Kept across launches, so it is back after `make install`.
+    private func showTouches(in corner: TouchWindow.Corner) {
+        defaults.set(corner.rawValue, forKey: "touchWindow")
+        let window = touchWindow ?? TouchWindow()
+        touchWindow = window
+        window.show(in: corner, size: touchSize)
+        controller.watch(window.feed)
     }
 
     @objc private func checkForUpdates() {

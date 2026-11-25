@@ -214,9 +214,24 @@ struct GestureDemoView: View {
     }
 }
 
+/// The trackpad alone, filling its frame: the touch window's drawing.
+struct TrackpadView: View {
+    let frame: SceneFrame
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        Canvas { ctx, size in
+            StageRenderer(frame: frame, dark: scheme == .dark, padOnly: true).draw(in: &ctx, size: size)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 private struct StageRenderer {
     let frame: SceneFrame
     let dark: Bool
+    /// Draws only the trackpad, scaled to fill the view.
+    var padOnly = false
 
     static let design = CGSize(width: 392, height: 150)
     static let pad = CGRect(x: 6, y: 26, width: 140, height: 98)
@@ -231,12 +246,14 @@ private struct StageRenderer {
     }
 
     func draw(in ctx: inout GraphicsContext, size: CGSize) {
-        let d = Self.design
+        // The pad's outline is centered on its edge, so half of it lies outside.
+        let d = padOnly ? Self.pad.insetBy(dx: -1, dy: -1) : CGRect(origin: .zero, size: Self.design)
         let scale = min(size.width / d.width, size.height / d.height)
         ctx.translateBy(x: (size.width - d.width * scale) / 2, y: (size.height - d.height * scale) / 2)
         ctx.scaleBy(x: scale, y: scale)
+        ctx.translateBy(x: -d.minX, y: -d.minY)
         drawPad(&ctx)
-        drawDisplay(&ctx)
+        if !padOnly { drawDisplay(&ctx) }
     }
 
     // MARK: Trackpad

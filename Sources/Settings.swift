@@ -94,6 +94,23 @@ enum SystemGestures {
     }
 }
 
+/// macOS's own tiling setting, System Settings › Desktop & Dock › "Tiled windows have margins".
+/// When it is on, Tutamak leaves the same gap around the windows it snaps and maximizes, and
+/// between them. Read at the start of each gesture, so a change applies to the next one.
+enum TiledMargins {
+    /// macOS's gap with margins on, as other window managers use it (Loop, Flick).
+    static let width: CGFloat = 8
+
+    /// The margin to leave now: `width`, or 0 when the setting is off. A Mac where it was never
+    /// changed has no value stored; that counts as off, as it did before Tutamak read the setting.
+    static func current() -> CGFloat {
+        let domain = "com.apple.WindowManager" as CFString
+        CFPreferencesAppSynchronize(domain)
+        let on = CFPreferencesCopyAppValue("EnableTiledWindowMargins" as CFString, domain) as? Bool ?? false
+        return on ? width : 0
+    }
+}
+
 extension GridChoice {
     /// The snap grid's choices as offered in the settings and the setup, by their stored value.
     static let titled: [(title: String, raw: String)] = [

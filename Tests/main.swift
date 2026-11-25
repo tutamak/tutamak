@@ -740,6 +740,138 @@ do {
     check(zone(300, 200, four, laptop) == CGRect(x: 0, y: 33, width: 756, height: 475), "2×2: a quarter")
     check(zone(756, 200, four, laptop) == CGRect(x: 0, y: 33, width: 1512, height: 475), "2×2: the top half on the middle line")
     check(zone(756, 508, four, laptop) == laptop, "2×2: the whole area where the lines cross")
+
+    // Ticks: once per line caught, not on the way into a line and again out of it.
+    func lines(_ x: CGFloat, _ y: CGFloat, _ layout: GridLayout, _ v: CGRect) -> Int {
+        Geometry.gridLines(at: CGPoint(x: x, y: y), in: v, layout: layout)
+    }
+    check(lines(300, 200, four, laptop) == 0 && lines(756, 200, four, laptop) == 1 && lines(756, 508, four, laptop) == 2,
+          "inside a cell 0 lines, on a line 1, where two cross 2")
+    func catches(across v: CGRect, _ layout: GridLayout, y: CGFloat) -> Int {
+        var caught = 0
+        var previous = lines(v.minX, y, layout, v)
+        for x in stride(from: v.minX, through: v.maxX - 1, by: 2) {
+            let now = lines(x, y, layout, v)
+            if now > previous { caught += 1 }
+            previous = now
+        }
+        return caught
+    }
+    check(catches(across: laptop, four, y: 200) == 1, "sliding across two columns catches one line: one tick")
+    check(catches(across: wide, six, y: 300) == 2, "sliding across three columns catches two lines")
+}
+
+// MARK: Tiled-window margins (macOS's "Tiled windows have margins")
+
+do {
+    let v = CGRect(x: 0, y: 33, width: 1512, height: 949)
+    let left = Geometry.snapFrame(.left, visible: v, margin: 8)
+    let right = Geometry.snapFrame(.right, visible: v, margin: 8)
+    check(left == CGRect(x: 8, y: 41, width: 744, height: 933), "left half: 8 from the screen's edges, 4 from the middle")
+    check(right == CGRect(x: 760, y: 41, width: 744, height: 933), "right half: the same, mirrored")
+    check(right.minX - left.maxX == 8, "the two halves are 8 apart, like the margin")
+    check(Geometry.snapFrame(.maximize, visible: v, margin: 8) == v.insetBy(dx: 8, dy: 8), "the whole screen keeps the margin all around")
+    check(Geometry.snapFrame(.left, visible: v, margin: 0) == Geometry.snapFrame(.left, visible: v), "no margin, no change")
+
+    let four = GridLayout(columns: 2, rows: 2)
+    let cells = Geometry.gridCells(four, in: v, margin: 8)
+    check(cells[0] == CGRect(x: 8, y: 41, width: 744, height: 463), "2×2 with margins: the first quarter")
+    check(cells[1].minX - cells[0].maxX == 8 && cells[2].minY - cells[0].maxY == 8, "cells are 8 apart both ways")
+    check(cells[3].maxX == v.maxX - 8 && cells[3].maxY == v.maxY - 8, "the last cell keeps 8 from the far edges")
+    check(Geometry.gridZone(at: CGPoint(x: 756, y: 200), in: v, layout: four, margin: 8)
+          == CGRect(x: 8, y: 41, width: 1496, height: 463), "on the middle line: the top half, with margins")
+    check(Geometry.gridZone(at: CGPoint(x: 300, y: 200), in: v, layout: four, margin: 8) == cells[0],
+          "a zone of one cell is that cell, so the preview sits on the grid")
+
+    let odd = GridLayout(columns: 3, rows: 1)
+    let thirds = Geometry.gridCells(odd, in: v, margin: 5)
+    check(thirds[1].minX - thirds[0].maxX == 5 && thirds[2].minX - thirds[1].maxX == 5, "an odd margin still leaves exactly that gap")
+
+    // A snapped half with margins still hugs its side while resizing, against the margined bounds.
+    let bounds = Geometry.snapFrame(.maximize, visible: v, margin: 8)
+    check(Geometry.resizeAnchor(left, in: bounds, grip: ResizeGrip(x: .high, y: .middle)).x == 0,
+          "a margined left half keeps its left edge when its right edge is pinched")
+}
+
+// MARK: Pulled out of a snap (where the window goes as it takes its size back)
+
+do {
+    let v = CGRect(x: 0, y: 33, width: 1512, height: 949)
+    let left = Geometry.snapFrame(.left, visible: v)
+    let pointer = CGPoint(x: 378, y: 500)
+    let out = Geometry.pulledOut(left, to: CGSize(width: 1000, height: 600), pointer: pointer, within: v)
+    check(out.size == CGSize(width: 1000, height: 600), "it takes the size it is given")
+    check(out.minX == 0, "a half that grows back wider stays on its display instead of hanging off the side")
+    check(out.contains(pointer), "the pointer is still on the window")
+    check(abs((pointer.y - out.minY) / out.height - (pointer.y - left.minY) / left.height) < 0.01,
+          "vertically the pointer keeps its place in the window")
+
+    let top = CGPoint(x: 700, y: 40)
+    let fromFull = Geometry.pulledOut(v, to: CGSize(width: 900, height: 600), pointer: top, within: v)
+    check(fromFull.minY == 36 && fromFull.minX == 283, "pulled by the title bar, the title bar stays under the pointer")
+    check(Geometry.pulledOut(left, to: CGSize(width: 2000, height: 600), pointer: pointer, within: v).minX == v.minX,
+          "a size wider than the display starts at its left edge")
+}
+
+// MARK: Placements (a tap puts a maximized window back; a drag gives a snapped one its size back)
+
+do {
+    let v = CGRect(x: 0, y: 33, width: 1512, height: 949)
+    let free = CGRect(x: 200, y: 150, width: 900, height: 600)
+    let left = Geometry.snapFrame(.left, visible: v)
+    let right = Geometry.snapFrame(.right, visible: v)
+
+    var p = Placements<Int>()
+    check(p.pullOut(1, frame: free) == nil, "a window Tutamak never placed keeps its size")
+
+    _ = p.placing(1, from: free, fills: false)
+    check(p.pullOut(1, frame: left) == nil, "nothing counts until the window's frame is reported")
+    let token = p.placing(1, from: free, fills: false)
+    p.placed(1, token: token, at: left)
+    check(p.tapBack(1, frame: left) == nil, "a tap on a snapped half maximizes it")
+    check(p.pullOut(1, frame: left) == free.size, "dragging a snapped half out gives it its size back")
+    check(p.pullOut(1, frame: left) == nil, "only once: after that the window is free")
+
+    // Left half, then (dragged with ⌥, so not pulled out) the right half: the size from before the first snap is kept.
+    p.placed(1, token: p.placing(1, from: free, fills: false), at: left)
+    p.placed(1, token: p.placing(1, from: left, fills: false), at: right)
+    check(p.pullOut(1, frame: right) == free.size, "snapping again keeps the size from before the first snap")
+
+    // Half, tap (maximize), tap (back to the half), drag out.
+    p.placed(1, token: p.placing(1, from: free, fills: false), at: left)
+    p.placed(1, token: p.placing(1, from: left, fills: true), at: v)
+    let back = p.tapBack(1, frame: v)
+    check(back?.frame == left, "a tap on a half that was maximized puts it back in the half")
+    check(back?.token != nil, "and it counts as snapped there again")
+    if let token = back?.token { p.placed(1, token: token, at: left) }
+    check(p.pullOut(1, frame: left) == free.size, "dragging it out then gives back the size from before the half")
+
+    // Maximized straight from free: a tap restores, and then it is free.
+    p.placed(1, token: p.placing(1, from: free, fills: true), at: v)
+    let restored = p.tapBack(1, frame: v)
+    check(restored?.frame == free && restored?.token == nil, "a tap on a maximized window restores its frame")
+    check(p.pullOut(1, frame: free) == nil && p.tapBack(1, frame: free) == nil, "after that nothing is remembered")
+
+    // A pinch (or anything else) changed the snapped window: the snap no longer counts.
+    p.placed(1, token: p.placing(1, from: free, fills: false), at: left)
+    let pinched = CGRect(x: left.minX, y: left.minY, width: 600, height: left.height)
+    check(p.pullOut(1, frame: pinched) == nil, "a snapped window resized since keeps its new size")
+
+    // A window that refused the exact frame is matched by the frame it took.
+    let took = CGRect(x: 0, y: 33, width: 750, height: 945)
+    p.placed(2, token: p.placing(2, from: free, fills: false), at: took)
+    check(p.pullOut(2, frame: took) == free.size, "the frame the window took counts, not the one asked for")
+
+    // A report for an earlier placement does not stand in for a later one.
+    let early = p.placing(3, from: free, fills: false)
+    _ = p.placing(3, from: free, fills: true)
+    p.placed(3, token: early, at: left)
+    check(p.pullOut(3, frame: left) == nil, "a late report for an earlier placement is ignored")
+
+    // A window snapped without changing its size (it cannot be resized) has nothing to give back.
+    let moved = CGRect(x: 0, y: 33, width: 900, height: 600)
+    p.placed(4, token: p.placing(4, from: free, fills: false), at: moved)
+    check(p.pullOut(4, frame: moved) == nil, "same size: nothing to give back")
 }
 
 // MARK: DropHold (when a window released over the grid drops)

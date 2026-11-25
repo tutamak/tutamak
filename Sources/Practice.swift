@@ -9,6 +9,8 @@ import os
 /// Written on the gesture queue and read by the drawing on each display frame. Nothing here is
 /// observed, so a touch frame redraws nothing by itself; only a finished gesture reaches the main
 /// queue (`onGesture`).
+///
+/// The touch window (`TouchWindow.swift`) draws its fingers from one too, fed only `touches`.
 final class PracticeFeed {
     struct State {
         /// The fingers on the trackpad now, keyed by the id the trackpad gives each, in trackpad

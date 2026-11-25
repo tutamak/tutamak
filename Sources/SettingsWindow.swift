@@ -216,12 +216,16 @@ private struct SettingsView: View {
                 Text("Four fingers, on the window under the pointer. Point at a gesture to see it.")
             }
 
-            Section("Windows") {
+            Section {
                 Picker("Snap grid", selection: model.string("snapGrid")) {
                     ForEach(GridChoice.titled, id: \.raw) { Text($0.title).tag($0.raw) }
                 }
                 Toggle("Edge resistance", isOn: model.binding("edgeResistance"))
                 Toggle("Animate snapping", isOn: model.binding("animateSnapping"))
+            } header: {
+                Text("Windows")
+            } footer: {
+                Text("Snapped windows keep a gap around them when “Tiled windows have margins” is on in Desktop & Dock settings.")
             }
 
             Section {

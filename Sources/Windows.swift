@@ -145,7 +145,8 @@ enum AX {
 final class WindowMover {
     private enum Job {
         case origin(AXUIElement, CGPoint)
-        case frame(AXUIElement, CGRect, anchor: CGPoint)
+        /// `keep`: a size that must land; a move submitted after it is carried along instead.
+        case frame(AXUIElement, CGRect, anchor: CGPoint, keep: Bool)
     }
 
     private let queue = DispatchQueue(label: "tutamak.ax", qos: .userInteractive)
@@ -160,7 +161,13 @@ final class WindowMover {
 
     /// One step of a live resize or an animation. The final frame goes through `setFrame`.
     func resize(_ window: AXUIElement, to frame: CGRect, anchor: CGPoint = .zero) {
-        submit(.frame(window, frame, anchor: anchor))
+        submit(.frame(window, frame, anchor: anchor, keep: false))
+    }
+
+    /// The last step of a size change made while the window goes on moving. A later step would
+    /// normally replace it before it is applied; a move instead takes it along, so the size lands.
+    func settle(_ window: AXUIElement, to frame: CGRect) {
+        submit(.frame(window, frame, anchor: .zero, keep: true))
     }
 
     /// The slowest AX call (s) since `resetStats`: if the app is the bottleneck, pacing cannot help.
@@ -174,7 +181,12 @@ final class WindowMover {
 
     private func submit(_ job: Job) {
         lock.lock()
-        pending = job
+        if case .frame(let window, let frame, let anchor, keep: true)? = pending,
+           case .origin(let moved, let origin) = job, moved == window {
+            pending = .frame(window, CGRect(origin: origin, size: frame.size), anchor: anchor, keep: true)
+        } else {
+            pending = job
+        }
         let startDrain = !draining
         draining = true
         lock.unlock()
@@ -194,7 +206,7 @@ final class WindowMover {
                     switch job {
                     case .origin(let window, let origin):
                         AX.setOrigin(window, origin)
-                    case .frame(let window, let frame, let anchor):
+                    case .frame(let window, let frame, let anchor, _):
                         AX.setFrame(window, frame, anchor: anchor)
                     }
                 }

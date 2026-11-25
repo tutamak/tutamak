@@ -47,6 +47,15 @@ void MTDeviceStart(MTDeviceRef, int);
 void MTDeviceStop(MTDeviceRef, int);
 bool MTDeviceIsBuiltIn(MTDeviceRef);
 
+// The trackpad's haptic actuator, for a tick under the fingers. Signatures from Yoshimasa Niwa's
+// HapticKey sample (MIT). The device ID is the "Multitouch ID" of the AppleMultitouchDevice in the
+// IORegistry; actuation IDs 1–6, 15 and 16 are built-in waveforms. All return 0 on success.
+int MTDeviceGetDeviceID(MTDeviceRef, uint64_t *);
+CFTypeRef MTActuatorCreateFromDeviceID(uint64_t deviceID) CF_RETURNS_RETAINED;
+int MTActuatorOpen(CFTypeRef actuator);
+int MTActuatorClose(CFTypeRef actuator);
+int MTActuatorActuate(CFTypeRef actuator, int32_t actuationID, uint32_t unknown1, float unknown2, float unknown3);
+
 // Not multitouch, but private too: the window server's ID of an Accessibility window element
 // (used by Rectangle, yabai and Hammerspoon), to order the snap grid just behind the dragged window.
 #include <ApplicationServices/ApplicationServices.h>
