@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var pendingRescan: DispatchWorkItem?
     private var setup: SetupWindowController?
     private var settingsWindow: SettingsWindowController?
+    private var aboutWindow: AboutWindowController?
     private var iconRefresh: Timer?
     private var iconAlert: Bool?
     private let menuBarHint = MenuBarHint()
@@ -267,7 +268,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// The menu stays short: one status line when all is well (problems are listed only when there
-    /// are any, each leading to its fix), Enabled, and the items that open the settings and the setup.
+    /// are any, each leading to its fix), Enabled, the items that open the settings and the setup,
+    /// and About beside the update check.
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
@@ -288,6 +290,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         add(menu, "Enabled", #selector(toggleEnabled)).state = enabled ? .on : .off
         add(menu, "Settings…", #selector(openSettingsAction), key: ",")
         add(menu, "Setup Assistant…", #selector(openSetupAction))
+        menu.addItem(.separator())
+        add(menu, "About \(Flavor.name)", #selector(openAboutAction))
         if updater != nil, updater?.waiting == nil {
             add(menu, "Check for Updates…", #selector(checkForUpdates))
         }
@@ -379,6 +383,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             settingsWindow = controller
         }
         settingsWindow?.show()
+    }
+
+    /// One About window; opening it again brings it forward.
+    @objc private func openAboutAction() {
+        if aboutWindow == nil {
+            let controller = AboutWindowController()
+            controller.onClose = { [weak self] in self?.aboutWindow = nil }
+            aboutWindow = controller
+        }
+        aboutWindow?.show()
     }
 
     @objc private func checkForUpdates() {

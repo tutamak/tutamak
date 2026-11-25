@@ -98,16 +98,12 @@ private struct HintBubble: View {
     }
 }
 
-/// Liquid Glass in the bubble's shape on macOS 26, a popover-like material before it.
+/// Liquid Glass in the bubble's shape.
 private struct GlassShape<S: Shape>: ViewModifier {
     let shape: S
 
     func body(content: Content) -> some View {
-        if #available(macOS 26, *) {
-            content.glassEffect(.regular, in: shape)
-        } else {
-            content.background(.regularMaterial, in: shape)
-        }
+        content.glassEffect(.regular, in: shape)
     }
 }
 

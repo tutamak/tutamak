@@ -11,6 +11,14 @@ for the code.
 
 ## [Unreleased]
 
+### Added
+
+- An About window, from the menu bar menu: the version, what the name means, and links to the website, the changelog and where to report a problem.
+
+### Changed
+
+- Tutamak now needs macOS 26 or later, the only version it has been tried on.
+
 ## [0.1.0] - 2026-11-25
 
 The first release.

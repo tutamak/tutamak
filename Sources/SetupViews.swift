@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 // The setup speaks macOS: system type and colors, rows like System Settings' with a colored
-// tile each, Liquid Glass buttons on macOS 26, and SF Symbols' own transitions when a state
+// tile each, Liquid Glass buttons, and SF Symbols' own transitions when a state
 // changes. Color means something (a row's kind, a state); nothing is decoration.
 
 // MARK: Root
@@ -522,25 +522,19 @@ private struct PageDots: View {
     }
 }
 
-/// Liquid Glass on macOS 26, the bordered style before it. In a window that is not active the
-/// prominent glass loses its tint and its white title with it (seen on macOS 26.4), so there it
-/// is plain glass, whose title stays readable.
+/// Prominent Liquid Glass. In a window that is not active the prominent glass loses its tint and
+/// its white title with it (seen on macOS 26.4), so there it is plain glass, whose title stays
+/// readable.
 private struct PrimaryStyle: ViewModifier {
     @Environment(\.controlActiveState) private var active
 
     func body(content: Content) -> some View {
-        if #available(macOS 26, *) {
-            if active == .inactive { content.buttonStyle(.glass) } else { content.buttonStyle(.glassProminent) }
-        } else {
-            content.buttonStyle(.borderedProminent)
-        }
+        if active == .inactive { content.buttonStyle(.glass) } else { content.buttonStyle(.glassProminent) }
     }
 }
 
 private extension View {
     func primaryStyle() -> some View { modifier(PrimaryStyle()) }
 
-    @ViewBuilder func secondaryStyle() -> some View {
-        if #available(macOS 26, *) { buttonStyle(.glass) } else { buttonStyle(.bordered) }
-    }
+    func secondaryStyle() -> some View { buttonStyle(.glass) }
 }

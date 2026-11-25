@@ -248,26 +248,13 @@ final class PermissionGuide {
     }
 }
 
-/// Liquid Glass on macOS 26; a popover material on older systems (a fallback not yet tried on one).
+/// Liquid Glass behind a card.
 enum GlassBackground {
     static func wrap(_ content: NSView, cornerRadius: CGFloat) -> NSView {
-        if #available(macOS 26, *) {
-            let glass = NSGlassEffectView()
-            glass.cornerRadius = cornerRadius
-            glass.contentView = content
-            return glass
-        }
-        let effect = NSVisualEffectView()
-        effect.material = .popover
-        effect.blendingMode = .behindWindow
-        effect.state = .active
-        effect.wantsLayer = true
-        effect.layer?.cornerRadius = cornerRadius
-        effect.layer?.masksToBounds = true
-        content.frame = effect.bounds
-        content.autoresizingMask = [.width, .height]
-        effect.addSubview(content)
-        return effect
+        let glass = NSGlassEffectView()
+        glass.cornerRadius = cornerRadius
+        glass.contentView = content
+        return glass
     }
 }
 

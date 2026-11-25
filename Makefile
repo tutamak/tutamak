@@ -54,7 +54,7 @@ SPARKLE_DIR     := build/sparkle-$(SPARKLE_VERSION)
 SPARKLE_KEY     := WC9PPr7SL5v2LvmQShrOYVEawDoB5wWngrinpVZE6Tw=
 FRAMEWORK       := $(BUNDLE)/Contents/Frameworks/Sparkle.framework
 
-SWIFTFLAGS := -O -swift-version 5 -target arm64-apple-macos14.0 \
+SWIFTFLAGS := -O -swift-version 5 -target arm64-apple-macos26.0 \
 	-import-objc-header Sources/MultitouchPrivate.h \
 	-F $(SDK)/System/Library/PrivateFrameworks -framework MultitouchSupport \
 	-F $(SPARKLE_DIR) -framework Sparkle -Xlinker -rpath -Xlinker @executable_path/../Frameworks

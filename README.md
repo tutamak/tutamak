@@ -6,7 +6,7 @@ Put four fingers down and the window under the pointer is yours: slide to move i
 resize it, tap to make it fill the screen. No title bar to aim for, no shortcut to remember.
 
 **[Download Tutamak](https://github.com/tutamak/tutamak/releases/latest/download/Tutamak.dmg)**
-for macOS 14 or later on an Apple silicon Mac · [What's new](CHANGELOG.md)
+for macOS 26 or later on an Apple silicon Mac · [What's new](CHANGELOG.md)
 
 ## What it does
 
@@ -29,8 +29,6 @@ off macOS's own four-finger swipes so the two don't fight, and trying each gestu
 
 After that, Tutamak lives in the menu bar. Its menu has Settings (⌘,) and the setup, if you ever
 want to run it again. Tutamak checks for updates once a day and asks before installing one.
-
-So far it has been built and tried on macOS 26 only.
 
 ## Good to know
 

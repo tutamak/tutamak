@@ -125,8 +125,10 @@ down opens App Exposé.
   Tutamak is paused, and shows a small dot while something needs attention (a permission, the
   macOS gestures).
 - Menu: a single "Ready" line when all is well (otherwise one line per problem, each leading to
-  its fix), Enabled, Settings… (⌘,), Setup Assistant…, Quit. The line for a missing permission
-  opens the setup assistant.
+  its fix), Enabled, Settings… (⌘,), Setup Assistant…, About Tutamak, Check for Updates…
+  (release builds), Quit. The line for a missing permission opens the setup assistant.
+- About: the icon, name and version, what the name means, and links to the website, the
+  changelog, the issues and the source. It closes with Escape or ⌘W.
 - Settings: General (on/off, Open at login, speed), Gestures (each one, with a preview of the one
   pointed at), Windows (snap grid, edge resistance, animate snapping), macOS (Accessibility, the
   macOS four-finger gestures with Turn Off and Restore, the shortcuts the flicks need) and About
@@ -232,6 +234,7 @@ changed to match).
   feeds them the real fingers while the setup assistant's practice is on.
 - `Sources/MenuBarHint.swift`: the bubble under the menu bar icon at the end of the setup.
 - `Sources/MenuBarIcon.swift`: the menu bar icon. `SettingsWindow.swift`: the settings window.
+  `AboutWindow.swift`: the About window, and the links it shares with nothing else.
 - `Sources/Updater.swift`: updates, through Sparkle; the only file that imports it.
   `Flavor.swift` tells the two flavors apart and picks the update feed, and `AppMover.swift` offers
   to move a copy opened from the disk image or Downloads into Applications.
