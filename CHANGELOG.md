@@ -11,6 +11,8 @@ for the code.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-25
+
 ### Added
 
 - An About window, from the menu bar menu: the version, what the name means, and links to the website, the changelog and where to report a problem.
@@ -33,5 +35,6 @@ The first release.
 - Settings, with a preview of each gesture as you point at it.
 - Updates: Tutamak checks for new versions once a day and installs them when you agree.
 
-[Unreleased]: https://github.com/tutamak/tutamak/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/tutamak/tutamak/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/tutamak/tutamak/releases/tag/v0.2.0
 [0.1.0]: https://github.com/tutamak/tutamak/releases/tag/v0.1.0
